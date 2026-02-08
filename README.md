@@ -356,11 +356,11 @@ A router operates at the **Network layer** using **IP addresses**. Its job is to
 
 ```
 192.168.1.0/24                           192.168.2.0/24
-                    ┌──────────┐
+                  ┌───────────┐
 [PC1: .10] ────── │  Router   │ ────── [PC2: .20]
   gw: .1          │ .1    .1  │          gw: .1
-                    │ eth0  eth1│
-                    └──────────┘
+                  │ eth0  eth1│
+                  └───────────┘
 ```
 
 ### Router-on-a-Stick (Inter-VLAN Routing)
@@ -369,7 +369,7 @@ When using VLANs, a single physical router interface can handle multiple VLANs u
 
 ```
                         ┌──────────────┐
-                        │    Router     │
+                        │    Router    │
                         │              │
                         │  G0/0.10 ──── 192.168.1.1/26  (VLAN 10 gateway)
                         │  G0/0.20 ──── 192.168.1.65/27 (VLAN 20 gateway)
@@ -378,12 +378,12 @@ When using VLANs, a single physical router interface can handle multiple VLANs u
                         └──────┬───────┘
                                │ trunk (VLANs 10,20,30)
                         ┌──────┴───────┐
-                        │    Switch     │
+                        │    Switch    │
                         │              │
               ┌─────────┼──────────────┼─────────┐
          port 1 (V10)  port 2 (V20)  port 3 (V30)
               │              │              │
-           [PC-A]        [PC-B]        [PC-C]
+           [PC-A]         [PC-B]         [PC-C]
 ```
 
 **How a packet flows from PC-A (VLAN 10) to PC-C (VLAN 30):**
@@ -456,17 +456,17 @@ The SimuLAN tutorial network applies all the concepts above in a small office sc
                          │ (Router) │
                          │          │
                     G0/0 │          │ G0/1
-            ┌────────────┘          └────────────┐
-            │ trunk                        trunk  │
-       ┌────┴─────┐                    ┌─────┴────┐
-       │   SW1    │                    │   SW2    │
-       │ (Switch) │                    │ (Switch) │
-       └┬──┬──┬──┬┘                    └┬──┬──┬──┬┘
-        │  │  │  │                      │  │  │  │
-       V10 V10 V20 V20 V50            V30 V30 V50 V40
-        │  │  │  │  │                  │  │  │  │
-       PC1 PC2 PC1 PC2 Printer       PC1 PC2 Srv AP
-      Sales    HR       (Svc)         IT      (Svc)(Guest)
+            ┌────────────┘          └───────────┐
+            │ trunk                       trunk │
+       ┌────┴────────────┐                 ┌────┴────────────┐
+       │   SW1           │                 │   SW2           │
+       │ (Switch)        │                 │ (Switch)        │
+       └┬───┬───┬───┬───┬┘                 └┬───┬───┬───┬───┬┘
+        │   │   │   │   │                   │   │   │   │
+       V10 V10 V20 V20 V50                 V30 V30 V40 V50
+        │   │   │   │   │                   │   │   │   │
+       PC1 PC2 PC1 PC2 Printer            PC1  PC2 Ap  Ser
+        (Sales)  (HR)  (Svc)                (IT)      (Svc)
 ```
 
 ### Subnet Design (VLSM)
