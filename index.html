@@ -1,0 +1,3862 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimuLAN - Network Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    * {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    .mono, .mono * {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #475569;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b;
+    }
+    
+    /* Canvas styling */
+    #topology-canvas {
+      background: transparent;
+    }
+    
+    /* Device styling */
+    .device {
+      transition: all 0.2s ease;
+      cursor: move;
+    }
+    
+    .device:hover {
+      transform: scale(1.05);
+    }
+    
+    .device.selected {
+      filter: drop-shadow(0 0 12px #3b82f6);
+    }
+    
+    /* Packet animation */
+    .packet {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      animation: pulse 0.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.8; }
+    }
+    
+    /* Connection lines */
+    .connection-line {
+      stroke: #94a3b8;
+      stroke-width: 2;
+      fill: none;
+      transition: stroke 0.2s ease;
+    }
+
+    .connection-line.active {
+      stroke: #22c55e;
+      stroke-width: 2;
+    }
+
+    .connection-line:hover {
+      stroke: #f59e0b;
+      stroke-width: 3;
+      cursor: pointer;
+    }
+    
+    /* Subnet colors */
+    .subnet-1 { --subnet-color: #3b82f6; }
+    .subnet-2 { --subnet-color: #22c55e; }
+    .subnet-3 { --subnet-color: #f59e0b; }
+    .subnet-4 { --subnet-color: #ec4899; }
+    .subnet-5 { --subnet-color: #8b5cf6; }
+    
+    /* Panel transitions */
+    .panel {
+      transition: all 0.3s ease;
+    }
+    
+    /* Tooltip */
+    .tooltip {
+      position: absolute;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #e2e8f0;
+      pointer-events: none;
+      z-index: 2000;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    
+    /* Drag preview */
+    .drag-preview {
+      position: fixed;
+      pointer-events: none;
+      opacity: 0.8;
+      z-index: 3000;
+    }
+    
+    /* Terminal */
+    .terminal-line {
+      animation: fadeIn 0.2s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Tab styling */
+    .tab-button {
+      position: relative;
+    }
+    
+    .tab-button.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #3b82f6;
+    }
+    
+    /* Input validation */
+    input.invalid {
+      border-color: #ef4444 !important;
+      background: #fef2f2 !important;
+    }
+    
+    input.valid {
+      border-color: #22c55e !important;
+    }
+    
+    /* Loading spinner */
+    .spinner {
+      border: 2px solid #334155;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full bg-slate-900 text-slate-200 overflow-hidden">
+  <div id="app" class="h-full flex flex-col"><!-- Header -->
+   <header class="bg-slate-800 border-b border-slate-700 px-4 py-3 flex items-center gap-4 flex-shrink-0">
+     <div class="flex items-center gap-2">
+      <svg class="w-8 h-8 text-blue-500" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2" /> <circle cx="5" cy="19" r="2" /> <circle cx="19" cy="19" r="2" /> <path d="M12 7v4m-5.5 5.5L11 13m7.5 5.5L13 13" /> <circle cx="12" cy="13" r="2" />
+      </svg>
+      <div><h1 id="app-title" class="text-xl font-bold text-white leading-tight">SimuLAN</h1><p class="text-[10px] text-slate-400 leading-tight">Network Simulator v1.0 by Mr. Piay</p></div>
+     </div>
+     <div class="flex-1"></div>
+     <div class="flex items-center gap-2"><button id="btn-new" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition flex items-center gap-2">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+       </svg> New </button> <button id="btn-presets" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+       </svg> Presets </button> <button id="btn-save" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+       </svg> Save </button> <button id="btn-load" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition flex items-center gap-2">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+       </svg> Load </button> <button id="btn-subnet-calc" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg> Subnet Calc </button><button id="btn-practice" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg> Practice </button><button id="btn-tutorial" class="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg> Tutorial </button> <button id="btn-help" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg> Help </button>
+    </div>
+   </header><!-- Main Content -->
+   <div class="flex-1 flex overflow-hidden"><!-- Left Panel - Device Palette -->
+    <aside class="w-64 bg-slate-800 border-r border-slate-700 flex flex-col flex-shrink-0">
+     <div class="p-4 border-b border-slate-700">
+      <h2 class="font-semibold text-white mb-1">Devices</h2>
+      <p class="text-xs text-slate-400">Drag devices to the canvas</p>
+     </div>
+     <div class="flex-1 p-4 overflow-auto">
+      <div class="grid grid-cols-2 gap-3" id="device-palette"><!-- PC -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="pc" draggable="true">
+        <svg class="w-10 h-10 text-blue-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" /> <path d="M8 21h8M12 17v4" />
+        </svg><span class="text-xs font-medium">PC</span>
+       </div><!-- Laptop -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="laptop" draggable="true">
+        <svg class="w-10 h-10 text-cyan-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8H4V6z" /> <path d="M2 18h20v1a2 2 0 01-2 2H4a2 2 0 01-2-2v-1z" />
+        </svg><span class="text-xs font-medium">Laptop</span>
+       </div><!-- Server -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="server" draggable="true">
+        <svg class="w-10 h-10 text-purple-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="2" width="18" height="6" rx="1" /> <rect x="3" y="9" width="18" height="6" rx="1" /> <rect x="3" y="16" width="18" height="6" rx="1" /> <circle cx="7" cy="5" r="1" fill="currentColor" /> <circle cx="7" cy="12" r="1" fill="currentColor" /> <circle cx="7" cy="19" r="1" fill="currentColor" />
+        </svg><span class="text-xs font-medium">Server</span>
+       </div><!-- Switch -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="switch" draggable="true">
+        <svg class="w-10 h-10 text-green-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="8" width="20" height="8" rx="2" /> <circle cx="6" cy="12" r="1.5" fill="currentColor" /> <circle cx="10" cy="12" r="1.5" fill="currentColor" /> <circle cx="14" cy="12" r="1.5" fill="currentColor" /> <circle cx="18" cy="12" r="1.5" fill="currentColor" />
+        </svg><span class="text-xs font-medium">Switch</span>
+       </div><!-- Router -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="router" draggable="true">
+        <svg class="w-10 h-10 text-amber-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9" /> <path d="M12 3v3M12 18v3M3 12h3M18 12h3" /> <circle cx="12" cy="12" r="3" />
+        </svg><span class="text-xs font-medium">Router</span>
+       </div><!-- Printer -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="printer" draggable="true">
+        <svg class="w-10 h-10 text-pink-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 9V2h12v7" /> <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /> <rect x="6" y="14" width="12" height="8" rx="1" />
+        </svg><span class="text-xs font-medium">Printer</span>
+       </div><!-- AP -->
+       <div class="device-template p-3 bg-slate-700 rounded-lg cursor-move hover:bg-slate-600 transition flex flex-col items-center gap-2" data-type="ap" draggable="true">
+        <svg class="w-10 h-10 text-teal-400" viewbox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="18" r="2" /> <path d="M8.5 14.5a5 5 0 017 0" /> <path d="M5 11a9 9 0 0114 0" /> <path d="M1.5 7.5a13 13 0 0121 0" />
+        </svg><span class="text-xs font-medium">AP</span>
+       </div>
+      </div>
+     </div>
+    </aside><!-- Center - Topology Canvas -->
+    <main class="flex-1 flex flex-col overflow-hidden"><!-- Canvas Toolbar -->
+     <div class="bg-slate-800 border-b border-slate-700 px-4 py-2 flex items-center justify-between flex-shrink-0">
+      <div class="flex items-center gap-2"><button id="btn-connect" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm transition flex items-center gap-2" title="Connect Devices (C)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg> Connect </button> <button id="btn-delete" class="px-3 py-1.5 bg-slate-700 hover:bg-red-600 rounded text-sm transition flex items-center gap-2" title="Delete Selected (Del)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg> Delete </button>
+       <div class="h-6 w-px bg-slate-600 mx-2"></div><button id="btn-trace" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 rounded text-sm transition flex items-center gap-2" title="Traceroute (T)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg> Trace </button>
+      </div>
+      <div class="flex items-center gap-2"><span class="text-xs text-slate-400" id="status-text">Ready</span>
+       <div class="w-2 h-2 rounded-full bg-green-500" id="status-indicator"></div>
+      </div>
+     </div><!-- Canvas Container -->
+     <div class="flex-1 relative overflow-hidden" id="canvas-container">
+      <!-- Scrollable canvas with everything inside -->
+      <div id="topology-canvas" class="absolute inset-0 overflow-auto" style="background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%), repeating-linear-gradient(0deg, transparent, transparent 40px, #1e3a5f08 40px, #1e3a5f08 41px), repeating-linear-gradient(90deg, transparent, transparent 40px, #1e3a5f08 40px, #1e3a5f08 41px);">
+        <!-- Inner container for proper sizing -->
+        <div id="topology-inner" style="position: relative; min-width: 2000px; min-height: 1500px;">
+          <!-- Connections SVG inside scrollable area -->
+          <svg id="connections-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0;"></svg>
+          <!-- Devices are appended here dynamically -->
+        </div>
+      </div>
+      <!-- Temporary connection line (fixed position for drawing) -->
+      <svg id="temp-connection" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 10;"><line id="temp-line" x1="0" y1="0" x2="0" y2="0" stroke="#3b82f6" stroke-width="2" stroke-dasharray="5,5" opacity="0" />
+      </svg>
+      <!-- Packets container -->
+      <div id="packets-container" class="absolute inset-0 pointer-events-none" style="z-index: 4;"></div>
+     </div>
+    </main><!-- Right Panel - Configuration -->
+    <aside class="w-80 bg-slate-800 border-l border-slate-700 flex flex-col flex-shrink-0"><!-- Tabs -->
+     <div class="flex border-b border-slate-700"><button class="tab-button active flex-1 px-4 py-3 text-sm font-medium hover:bg-slate-700 transition" data-tab="device">Device</button> <button class="tab-button flex-1 px-4 py-3 text-sm font-medium hover:bg-slate-700 transition" data-tab="firewall">Firewall</button> <button class="tab-button flex-1 px-4 py-3 text-sm font-medium hover:bg-slate-700 transition" data-tab="info">Info</button>
+     </div><!-- Tab Content -->
+     <div class="flex-1 overflow-auto"><!-- Device Tab -->
+      <div id="tab-device" class="tab-content p-4">
+       <div id="no-selection" class="text-center py-8 text-slate-400">
+        <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+        </svg>
+        <p class="text-sm">Select a device to configure</p>
+       </div>
+       <div id="device-config" class="hidden space-y-4">
+        <div class="flex items-center gap-3 mb-4">
+         <div id="device-icon" class="w-12 h-12 bg-slate-700 rounded-lg flex items-center justify-center"></div>
+         <div class="flex-1"><input type="text" id="device-name" class="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm font-medium focus:outline-none focus:border-blue-500" placeholder="Device Name">
+          <p id="device-type-label" class="text-xs text-slate-400 mt-1">Type: PC</p>
+         </div>
+        </div><!-- Network Configuration -->
+        <div id="network-config" class="space-y-3">
+         <h3 class="font-medium text-white flex items-center gap-2">
+          <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+          </svg> Network Configuration</h3>
+         <div class="space-y-2"><label class="block"> <span class="text-xs text-slate-400">IP Address</span> <input type="text" id="ip-address" class="mono w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="192.168.1.10"> </label> <label class="block"> <span class="text-xs text-slate-400">Subnet Mask / CIDR</span> <input type="text" id="subnet-mask" class="mono w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="255.255.255.0 or /24"> </label> <label class="block"> <span class="text-xs text-slate-400">Default Gateway</span> <input type="text" id="default-gateway" class="mono w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="192.168.1.1"> </label> <label class="block"> <span class="text-xs text-slate-400">DNS Server (Optional)</span> <input type="text" id="dns-server" class="mono w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="8.8.8.8"> </label>
+         </div>
+        </div><!-- Router Interfaces -->
+        <div id="router-interfaces" class="hidden space-y-3">
+         <h3 class="font-medium text-white flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg> Interfaces</h3>
+         <div id="interfaces-list" class="space-y-2"></div><button id="add-interface" class="w-full px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition flex items-center justify-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg> Add Interface </button>
+        </div><!-- Switch VLANs -->
+        <div id="switch-vlans" class="hidden space-y-3">
+         <h3 class="font-medium text-white flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg> VLAN Configuration</h3>
+         <div class="space-y-2">
+          <div class="flex items-center gap-2">
+           <input type="text" id="new-vlan-id" class="mono w-20 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm" placeholder="VLAN">
+           <button id="add-vlan" class="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs transition">Add VLAN</button>
+          </div>
+          <div id="vlan-list" class="flex flex-wrap gap-1"></div>
+         </div>
+         <div class="text-xs text-slate-400 mt-2">Port Configuration</div>
+         <div id="port-list" class="space-y-2"></div>
+        </div><!-- Subnet Info -->
+        <div id="subnet-info" class="p-3 bg-slate-700/50 rounded-lg space-y-2 hidden">
+         <h4 class="text-xs font-medium text-slate-300">Subnet Information</h4>
+         <div class="grid grid-cols-2 gap-2 text-xs mono">
+          <div><span class="text-slate-400">Network:</span> <span id="info-network" class="text-white ml-1">-</span>
+          </div>
+          <div><span class="text-slate-400">Broadcast:</span> <span id="info-broadcast" class="text-white ml-1">-</span>
+          </div>
+          <div><span class="text-slate-400">First Host:</span> <span id="info-first" class="text-white ml-1">-</span>
+          </div>
+          <div><span class="text-slate-400">Last Host:</span> <span id="info-last" class="text-white ml-1">-</span>
+          </div>
+          <div class="col-span-2"><span class="text-slate-400">Total Hosts:</span> <span id="info-hosts" class="text-white ml-1">-</span>
+          </div>
+         </div>
+        </div><button id="apply-config" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition"> Apply Configuration </button>
+       </div>
+      </div><!-- Firewall Tab -->
+      <div id="tab-firewall" class="tab-content hidden p-4">
+       <div class="space-y-4">
+        <div class="flex items-center justify-between">
+         <h3 class="font-medium text-white">Deny Rules (ACL)</h3><button id="add-rule" class="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs transition flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg> Add Rule </button>
+        </div>
+        <div id="firewall-rules" class="space-y-2">
+         <div class="text-center py-6 text-slate-400 text-sm">
+          <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg> No firewall rules defined
+         </div>
+        </div><!-- Rule Editor -->
+        <div id="rule-editor" class="hidden p-3 bg-slate-700 rounded-lg space-y-3" data-edit-index="-1">
+         <h4 id="rule-editor-title" class="text-sm font-medium text-white">Deny Rule</h4>
+         <div class="grid grid-cols-2 gap-2"><label class="block"> <span class="text-xs text-slate-400">Source Subnet</span> <input type="text" id="rule-source" class="mono w-full bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" placeholder="192.168.1.0/24"> </label> <label class="block"> <span class="text-xs text-slate-400">Destination Subnet</span> <input type="text" id="rule-dest" class="mono w-full bg-slate-600 border border-slate-500 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-blue-500" placeholder="192.168.2.0/24"> </label>
+         </div>
+         <div class="flex gap-2"><button id="save-rule" class="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-xs font-medium transition">Save Deny Rule</button> <button id="cancel-rule" class="flex-1 px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium transition">Cancel</button>
+         </div>
+        </div>
+       </div>
+      </div><!-- Info Tab -->
+      <div id="tab-info" class="tab-content hidden p-4">
+       <div class="space-y-4">
+        <div class="p-4 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-lg border border-blue-800/50">
+         <h3 class="font-semibold text-white mb-2">Network Statistics</h3>
+         <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="p-2 bg-slate-800/50 rounded">
+           <div class="text-2xl font-bold text-blue-400" id="stat-devices">
+            0
+           </div>
+           <div class="text-xs text-slate-400">
+            Devices
+           </div>
+          </div>
+          <div class="p-2 bg-slate-800/50 rounded">
+           <div class="text-2xl font-bold text-green-400" id="stat-connections">
+            0
+           </div>
+           <div class="text-xs text-slate-400">
+            Connections
+           </div>
+          </div>
+          <div class="p-2 bg-slate-800/50 rounded">
+           <div class="text-2xl font-bold text-amber-400" id="stat-subnets">
+            0
+           </div>
+           <div class="text-xs text-slate-400">
+            Subnets
+           </div>
+          </div>
+          <div class="p-2 bg-slate-800/50 rounded">
+           <div class="text-2xl font-bold text-purple-400" id="stat-routers">
+            0
+           </div>
+           <div class="text-xs text-slate-400">
+            Routers
+           </div>
+          </div>
+         </div>
+        </div>
+        <div>
+         <h3 class="font-semibold text-white mb-2">Subnets Detected</h3>
+         <div id="subnet-list" class="space-y-2">
+          <p class="text-sm text-slate-400">No subnets configured</p>
+         </div>
+        </div>
+        <div>
+         <h3 class="font-semibold text-white mb-2">Quick Tips</h3>
+         <ul class="text-sm text-slate-400 space-y-1">
+          <li class="flex items-start gap-2"><span class="text-blue-400">•</span> Press <kbd class="px-1 bg-slate-700 rounded text-xs">C</kbd> to connect devices</li>
+          <li class="flex items-start gap-2"><span class="text-green-400">•</span> Press <kbd class="px-1 bg-slate-700 rounded text-xs">T</kbd> to trace route</li>
+          <li class="flex items-start gap-2"><span class="text-amber-400">•</span> Press <kbd class="px-1 bg-slate-700 rounded text-xs">Del</kbd> to delete selected</li>
+          <li class="flex items-start gap-2"><span class="text-purple-400">•</span> Double-click device to configure</li>
+         </ul>
+        </div>
+       </div>
+      </div>
+     </div>
+    </aside>
+   </div><!-- Bottom - Terminal & Tutorial Tabs -->
+   <div class="h-48 bg-slate-900 border-t border-slate-700 flex flex-col flex-shrink-0">
+    <div class="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700">
+     <div class="flex items-center gap-4">
+      <button id="tab-terminal-btn" class="flex items-center gap-2 text-sm font-medium text-white border-b-2 border-green-400 pb-1">
+       <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+       </svg>Terminal
+      </button>
+      <button id="tab-tutorial-btn" class="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white pb-1">
+       <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+       </svg>Tutorial
+      </button>
+     </div>
+     <div class="flex items-center gap-3">
+      <button id="clear-terminal" class="text-xs text-slate-400 hover:text-white transition">Clear</button>
+      <div id="tutorial-nav" class="hidden flex items-center gap-2">
+       <span id="tutorial-step-count" class="text-xs text-slate-400">1/8</span>
+       <button id="tutorial-prev" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">←</button>
+       <button id="tutorial-next" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs">→</button>
+      </div>
+     </div>
+    </div>
+    <div id="terminal" class="flex-1 p-3 overflow-auto mono text-sm">
+     <div class="terminal-line text-green-400">
+      SimuLAN v1.0 - Ready
+     </div>
+     <div class="terminal-line text-slate-400">
+      Type commands or use the GUI to build your network...
+     </div>
+    </div>
+    <div id="tutorial-panel" class="hidden flex-1 p-3 overflow-auto text-sm">
+     <div id="tutorial-content" class="text-slate-300"></div>
+    </div>
+   </div>
+  </div><!-- Subnet Calculator Modal -->
+  <div id="subnet-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[90%] overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+     <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+      <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+      </svg> Subnet Calculator</h2><button id="close-subnet-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg></button>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <div class="space-y-6"><!-- Input -->
+      <div class="grid grid-cols-2 gap-4"><label class="block"> <span class="text-sm text-slate-400">IP Address</span> <input type="text" id="calc-ip" class="mono w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:border-blue-500" placeholder="192.168.1.0"> </label> <label class="block"> <span class="text-sm text-slate-400">CIDR / Subnet Mask</span> <input type="text" id="calc-cidr" class="mono w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:border-blue-500" placeholder="/24 or 255.255.255.0"> </label>
+      </div><button id="calc-calculate" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition">Calculate</button> <!-- Results -->
+      <div id="calc-results" class="hidden space-y-4">
+       <div class="grid grid-cols-2 gap-4">
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          Network Address
+         </div>
+         <div class="mono text-lg text-white" id="calc-network">
+          -
+         </div>
+        </div>
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          Broadcast Address
+         </div>
+         <div class="mono text-lg text-white" id="calc-broadcast">
+          -
+         </div>
+        </div>
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          First Usable Host
+         </div>
+         <div class="mono text-lg text-white" id="calc-first">
+          -
+         </div>
+        </div>
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          Last Usable Host
+         </div>
+         <div class="mono text-lg text-white" id="calc-last">
+          -
+         </div>
+        </div>
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          Total Hosts
+         </div>
+         <div class="mono text-lg text-white" id="calc-hosts">
+          -
+         </div>
+        </div>
+        <div class="p-4 bg-slate-700/50 rounded-lg">
+         <div class="text-xs text-slate-400 mb-1">
+          Subnet Mask
+         </div>
+         <div class="mono text-lg text-white" id="calc-mask">
+          -
+         </div>
+        </div>
+       </div><!-- Binary Visualization -->
+       <div class="p-4 bg-slate-900 rounded-lg">
+        <div class="text-xs text-slate-400 mb-3">
+         Binary Visualization
+        </div>
+        <div class="space-y-2 mono text-xs">
+         <div class="flex items-center gap-2"><span class="w-20 text-slate-400">IP:</span> <span id="calc-binary-ip" class="text-white"></span>
+         </div>
+         <div class="flex items-center gap-2"><span class="w-20 text-slate-400">Mask:</span> <span id="calc-binary-mask" class="text-orange-400"></span>
+         </div>
+         <div class="flex items-center gap-2"><span class="w-20 text-slate-400">Network:</span> <span id="calc-binary-network" class="text-green-400"></span>
+         </div>
+        </div>
+        <div class="mt-3 flex">
+         <div id="calc-network-bits" class="h-2 bg-green-500 rounded-l"></div>
+         <div id="calc-host-bits" class="h-2 bg-blue-500 rounded-r"></div>
+        </div>
+        <div class="flex justify-between text-xs text-slate-400 mt-1"><span id="calc-network-count">Network bits</span> <span id="calc-host-count">Host bits</span>
+        </div>
+       </div><!-- Possible Subnets -->
+       <div class="p-4 bg-slate-700/50 rounded-lg">
+        <div class="text-sm text-slate-400 mb-3">Possible Subnets</div>
+        <div id="calc-subnets" class="space-y-2 max-h-64 overflow-auto"></div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div><!-- Help Modal -->
+  <div id="help-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[90%] overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+     <h2 class="text-lg font-semibold text-white">Help &amp; Documentation</h2><button id="close-help-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg></button>
+    </div>
+    <div class="flex-1 overflow-auto p-6 space-y-6">
+     <section>
+      <h3 class="font-semibold text-white mb-2">Getting Started</h3>
+      <p class="text-sm text-slate-400 mb-2">Drag devices from the left panel onto the canvas to build your network topology. Connect devices by clicking "Connect" and selecting two devices.</p>
+     </section>
+     <section>
+      <h3 class="font-semibold text-white mb-2">Key Concepts</h3>
+      <div class="space-y-3 text-sm">
+       <div class="p-3 bg-slate-700/50 rounded-lg">
+        <div class="font-medium text-green-400 mb-1">
+         Switch (Layer 2)
+        </div>
+        <p class="text-slate-400">Forwards traffic based on MAC addresses within the same subnet. Devices on the same switch can communicate directly if they're in the same subnet.</p>
+       </div>
+       <div class="p-3 bg-slate-700/50 rounded-lg">
+        <div class="font-medium text-amber-400 mb-1">
+         Router (Layer 3)
+        </div>
+        <p class="text-slate-400">Forwards traffic between different subnets based on IP addresses. Required for communication between devices in different subnets.</p>
+       </div>
+       <div class="p-3 bg-slate-700/50 rounded-lg">
+        <div class="font-medium text-blue-400 mb-1">
+         Default Gateway
+        </div>
+        <p class="text-slate-400">The IP address (not device!) that devices use to reach other subnets. Usually the router's interface IP in that subnet.</p>
+       </div>
+       <div class="p-3 bg-slate-700/50 rounded-lg">
+        <div class="font-medium text-purple-400 mb-1">
+         Subnet
+        </div>
+        <p class="text-slate-400">A logical division of an IP network. Devices must be in the same subnet to communicate directly through a switch.</p>
+       </div>
+      </div>
+     </section>
+     <section>
+      <h3 class="font-semibold text-white mb-2">Keyboard Shortcuts</h3>
+      <div class="grid grid-cols-2 gap-2 text-sm">
+       <div class="flex items-center gap-2">
+        <kbd class="px-2 py-1 bg-slate-700 rounded">C</kbd><span class="text-slate-400">Connect mode</span>
+       </div>
+       <div class="flex items-center gap-2">
+        <kbd class="px-2 py-1 bg-slate-700 rounded">T</kbd><span class="text-slate-400">Trace route</span>
+       </div>
+       <div class="flex items-center gap-2">
+        <kbd class="px-2 py-1 bg-slate-700 rounded">Del</kbd><span class="text-slate-400">Delete device</span>
+       </div>
+       <div class="flex items-center gap-2">
+        <kbd class="px-2 py-1 bg-slate-700 rounded">Shift</kbd>+<span class="text-slate-400">Click cable</span><span class="text-slate-400 ml-1">Delete connection</span>
+       </div>
+       <div class="flex items-center gap-2">
+        <kbd class="px-2 py-1 bg-slate-700 rounded">Esc</kbd><span class="text-slate-400">Cancel action</span>
+       </div>
+      </div>
+     </section>
+    </div>
+   </div>
+  </div><!-- Load Modal -->
+  <div id="load-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-lg max-h-[90%] overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+     <h2 class="text-lg font-semibold text-white">Load Topology</h2><button id="close-load-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg></button>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <p class="text-sm text-slate-400 mb-4">Select a JSON file to load a saved network topology.</p>
+     <label class="block w-full p-8 border-2 border-dashed border-slate-600 rounded-lg text-center cursor-pointer hover:border-blue-500 transition">
+      <input type="file" id="load-file-input" accept=".json" class="hidden">
+      <svg class="w-12 h-12 mx-auto mb-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+      </svg>
+      <span class="text-slate-400">Click to select file or drag & drop</span>
+     </label>
+    </div>
+   </div>
+  </div><!-- Save Modal -->
+  <div id="save-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-md overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+     <h2 class="text-lg font-semibold text-white">Save Topology</h2><button id="close-save-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg></button>
+    </div>
+    <div class="p-6 space-y-4"><label class="block"> <span class="text-sm text-slate-400">Topology Name</span> <input type="text" id="save-name" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 mt-1 focus:outline-none focus:border-blue-500" placeholder="My Network"> </label> <button id="confirm-save" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition flex items-center justify-center gap-2"> <span>Save Topology</span>
+      <div class="spinner hidden" id="save-spinner"></div></button>
+    </div>
+   </div>
+  </div>
+  <!-- Presets Modal -->
+  <div id="presets-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-3xl max-h-[90%] overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+     <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+      <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg> Network Presets</h2>
+     <button id="close-presets-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+     </button>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <p class="text-sm text-slate-400 mb-4">Load a pre-configured network topology to explore or modify.</p>
+     <div class="grid grid-cols-2 gap-4" id="presets-list">
+      <div class="preset-card p-4 bg-slate-700/50 rounded-lg border border-emerald-500 cursor-pointer transition" data-preset="vlan">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center text-2xl">🏢</div>
+        <div>
+         <h3 class="font-semibold text-white">Tutorial</h3>
+         <p class="text-xs text-slate-400">VLANs + Subnetting + ACLs</p>
+        </div>
+       </div>
+       <p class="text-xs text-slate-500">Sales, HR, IT, Guest, Services with ACL policies</p>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <!-- Practice Modal -->
+  <div id="practice-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+   <div class="bg-slate-800 rounded-xl border border-slate-700 w-full max-w-2xl max-h-[90%] overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700 bg-gradient-to-r from-purple-900/50 to-pink-900/50">
+     <div>
+      <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+       <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+       </svg> Subnet Practice Mode</h2>
+      <p class="text-xs text-slate-300 mt-1">Test your subnetting skills</p>
+     </div>
+     <button id="close-practice-modal" class="p-1 hover:bg-slate-700 rounded transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+     </button>
+    </div>
+    <div class="flex-1 overflow-auto p-6">
+     <div class="flex items-center justify-between mb-6">
+      <div class="flex gap-4">
+       <div class="text-center">
+        <div class="text-2xl font-bold text-green-400" id="practice-correct">0</div>
+        <div class="text-xs text-slate-400">Correct</div>
+       </div>
+       <div class="text-center">
+        <div class="text-2xl font-bold text-red-400" id="practice-incorrect">0</div>
+        <div class="text-xs text-slate-400">Incorrect</div>
+       </div>
+       <div class="text-center">
+        <div class="text-2xl font-bold text-blue-400" id="practice-streak">0</div>
+        <div class="text-xs text-slate-400">Streak</div>
+       </div>
+      </div>
+      <button id="practice-new" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-sm font-medium transition">New Question</button>
+     </div>
+     <div id="practice-question" class="p-6 bg-slate-700/50 rounded-xl border border-slate-600">
+      <div class="text-xs text-purple-400 font-medium uppercase tracking-wider mb-2" id="practice-type">Click "New Question" to start</div>
+      <div class="text-lg text-white mb-4" id="practice-text">Practice subnetting with random questions!</div>
+      <input type="text" id="practice-answer" class="mono w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-lg focus:outline-none focus:border-purple-500 mb-3" placeholder="Enter your answer...">
+      <div class="flex gap-2">
+       <button id="practice-submit" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition">Check Answer</button>
+       <button id="practice-hint" class="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition">Hint</button>
+      </div>
+     </div>
+     <div id="practice-feedback" class="mt-4 p-4 rounded-xl hidden">
+      <div class="font-semibold mb-2" id="practice-feedback-title"></div>
+      <div class="text-sm text-slate-300" id="practice-feedback-text"></div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+    // ============================================
+    // TUTORIAL SYSTEM
+    // ============================================
+
+    const tutorialSteps = [
+      {
+        title: '🎓 Welcome to SimuLAN',
+        content: `This tutorial walks you through the pre-loaded Tutorial.
+
+You'll learn how a real office uses VLANs, subnetting, and ACLs to segment and secure traffic between departments.
+
+The network is already loaded on the canvas - let's explore it!`,
+        highlight: null,
+        action: null
+      },
+      {
+        title: '📊 Network Overview',
+        content: `This office has 5 departments, each on its own VLAN and subnet, all carved from a single 192.168.1.0/24 block:
+
+  VLAN 10 - Sales      192.168.1.0/26   (62 hosts)
+  VLAN 20 - HR         192.168.1.64/27  (30 hosts)
+  VLAN 30 - IT         192.168.1.96/28  (14 hosts)
+  VLAN 40 - Guest      192.168.1.112/28 (14 hosts)
+  VLAN 50 - Services   192.168.1.128/28 (14 hosts)
+
+Sales gets the largest subnet (/26) because it has the most users. Smaller departments use /27 or /28.`,
+        highlight: null,
+        action: null
+      },
+      {
+        title: '🔀 Physical Topology',
+        content: `The physical layout uses two switches and one router:
+
+• SW1 handles Sales (VLAN 10), HR (VLAN 20), and Printer (VLAN 50)
+• SW2 handles IT (VLAN 30), Guest (VLAN 40), and Server (VLAN 50)
+• R1 connects to both switches via trunk ports
+
+Trunk ports carry traffic for all VLANs between devices. Access ports connect end devices to a single VLAN.
+
+Click on SW1 to see its VLAN and port configuration in the right panel.`,
+        highlight: null,
+        action: () => {
+          updateStatus('Click on SW1 to see its port configuration', 'connecting');
+          logTerminal('Tutorial: Click on a switch to see VLAN port assignments', 'info');
+        }
+      },
+      {
+        title: '🌐 Router-on-a-Stick',
+        content: `R1 uses subinterfaces to route between VLANs. Each subinterface has an IP that serves as the default gateway for its VLAN:
+
+  G0/0.10 → 192.168.1.1   (Sales gateway)
+  G0/0.20 → 192.168.1.65  (HR gateway)
+  G0/1.30 → 192.168.1.97  (IT gateway)
+  G0/1.40 → 192.168.1.113 (Guest gateway)
+  G0/0.50 → 192.168.1.129 (Services gateway)
+
+Click on R1 to see its interfaces. Notice each one has a VLAN tag.`,
+        highlight: null,
+        action: () => {
+          updateStatus('Click on R1 to inspect router subinterfaces', 'connecting');
+          logTerminal('Tutorial: Click on R1 to see subinterfaces and VLAN tags', 'info');
+        }
+      },
+      {
+        title: '🌐 Same-VLAN Communication',
+        content: `Devices on the same VLAN communicate directly through the switch - no router needed.
+
+Example: Sales-PC1 (192.168.1.10) → Sales-PC2 (192.168.1.11)
+
+Both are on SW1 access ports assigned to VLAN 10. The switch forwards the frame at Layer 2 because source and destination are in the same VLAN and subnet.
+
+Try it: press T (Trace), click Sales-PC1, then Sales-PC2.`,
+        highlight: null,
+        action: () => {
+          updateStatus('Trace Sales-PC1 → Sales-PC2 (same VLAN)', 'ready');
+          logTerminal('Tutorial: Trace between two Sales PCs on VLAN 10', 'info');
+        }
+      },
+      {
+        title: '🏗️ Inter-VLAN Routing',
+        content: `Devices on different VLANs must go through the router, even if they're on the same switch.
+
+Example: Sales-PC1 (VLAN 10) → IT-PC1 (VLAN 30)
+
+Path: Sales-PC1 → SW1 (access VLAN 10) → SW1 trunk → R1
+      R1 routes from G0/0.10 to G0/1.30
+      R1 → SW2 trunk → SW2 (access VLAN 30) → IT-PC1
+
+Try it: press T, click Sales-PC1, then IT-PC1.`,
+        highlight: null,
+        action: () => {
+          updateStatus('Trace Sales-PC1 → IT-PC1 (inter-VLAN)', 'ready');
+          logTerminal('Tutorial: Trace Sales-PC1 to IT-PC1 across VLANs', 'info');
+        }
+      },
+      {
+        title: '🔒 Deny Rules (ACLs)',
+        content: `The router enforces deny rules (ACLs) to restrict inter-VLAN traffic. This network has 4 rules:
+
+1. Sales /26 → Services /28: DENIED (no server/printer access)
+2. Sales /26 → HR /27: DENIED (department isolation)
+3. HR /27 → Sales /26: DENIED (department isolation)
+4. Guest /28 → 192.168.1.0/24: DENIED (full guest isolation)
+
+IT department has no restrictions - they can reach everything.
+
+Check the Firewall tab in the right panel to see the rules.`,
+        highlight: null,
+        action: () => {
+          document.querySelector('[data-tab="firewall"]').click();
+          logTerminal('Tutorial: Review the ACL deny rules', 'info');
+        }
+      },
+      {
+        title: '🧪 Test Your Understanding',
+        content: `Try these traces to verify the network behavior:
+
+✓ Sales-PC1 → Sales-PC2 (same VLAN, should work)
+✓ IT-PC1 → Server (allowed inter-VLAN, should work)
+✗ Sales-PC1 → Server (blocked by ACL)
+✗ Sales-PC1 → HR-PC1 (blocked by ACL)
+✗ Guest-WiFi → IT-PC1 (guest isolation)
+✓ IT-PC1 → HR-PC1 (IT has full access)
+
+Press T to trace, or click the Trace button in the toolbar.`,
+        highlight: null,
+        action: () => {
+          document.querySelector('[data-tab="device"]').click();
+          updateStatus('Ready - test connectivity with Trace (T)', 'ready');
+        }
+      },
+      {
+        title: '✅ What You Learned',
+        content: `This Tutorial demonstrates:
+
+✓ Subnetting a /24 into variable-size subnets (/26, /27, /28)
+✓ VLANs to segment traffic at Layer 2
+✓ Access ports (one VLAN) vs trunk ports (multiple VLANs)
+✓ Router-on-a-stick for inter-VLAN routing
+✓ ACL deny rules to enforce security policies
+
+Next: try building your own network from scratch, or modify this one - add devices, change VLANs, or create new deny rules!`,
+        highlight: null,
+        action: null
+      }
+    ];
+
+    let currentTutorialStep = 0;
+
+    function renderTutorialStep(stepIndex) {
+      const step = tutorialSteps[stepIndex];
+      const content = document.getElementById('tutorial-content');
+      
+      content.innerHTML = `
+        <div class="space-y-3">
+          <h3 class="text-base font-bold text-white">${step.title}</h3>
+          <div class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+            ${step.content}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('tutorial-step-count').textContent = `${stepIndex + 1}/${tutorialSteps.length}`;
+
+      // Disable previous button on first step
+      document.getElementById('tutorial-prev').disabled = stepIndex === 0;
+      document.getElementById('tutorial-prev').style.opacity = stepIndex === 0 ? '0.5' : '1';
+
+      // Change next button text on last step
+      const nextBtn = document.getElementById('tutorial-next');
+      if (stepIndex === tutorialSteps.length - 1) {
+        nextBtn.textContent = '✓';
+      } else {
+        nextBtn.textContent = '→';
+      }
+
+      // Execute action if present
+      if (step.action) {
+        setTimeout(step.action, 300);
+      }
+    }
+
+    function switchToTerminalTab() {
+      document.getElementById('terminal').classList.remove('hidden');
+      document.getElementById('tutorial-panel').classList.add('hidden');
+      document.getElementById('tutorial-nav').classList.add('hidden');
+      document.getElementById('clear-terminal').classList.remove('hidden');
+      document.getElementById('tab-terminal-btn').classList.add('text-white', 'border-b-2', 'border-green-400');
+      document.getElementById('tab-terminal-btn').classList.remove('text-slate-400');
+      document.getElementById('tab-tutorial-btn').classList.remove('text-white', 'border-b-2', 'border-yellow-400');
+      document.getElementById('tab-tutorial-btn').classList.add('text-slate-400');
+    }
+
+    function switchToTutorialTab() {
+      document.getElementById('terminal').classList.add('hidden');
+      document.getElementById('tutorial-panel').classList.remove('hidden');
+      document.getElementById('tutorial-nav').classList.remove('hidden');
+      document.getElementById('clear-terminal').classList.add('hidden');
+      document.getElementById('tab-tutorial-btn').classList.add('text-white', 'border-b-2', 'border-yellow-400');
+      document.getElementById('tab-tutorial-btn').classList.remove('text-slate-400');
+      document.getElementById('tab-terminal-btn').classList.remove('text-white', 'border-b-2', 'border-green-400');
+      document.getElementById('tab-terminal-btn').classList.add('text-slate-400');
+    }
+
+    function openTutorial() {
+      currentTutorialStep = 0;
+      loadPreset('vlan'); // Load the Tutorial preset
+      renderTutorialStep(0);
+      switchToTutorialTab();
+    }
+
+    function nextTutorialStep() {
+      if (currentTutorialStep < tutorialSteps.length - 1) {
+        currentTutorialStep++;
+        renderTutorialStep(currentTutorialStep);
+      } else {
+        switchToTerminalTab();
+        logTerminal('Tutorial completed! Start building your network.', 'success');
+      }
+    }
+
+    function prevTutorialStep() {
+      if (currentTutorialStep > 0) {
+        currentTutorialStep--;
+        renderTutorialStep(currentTutorialStep);
+      }
+    }
+
+    // ============================================
+    // NETWORK SIMULATOR - Core Application Logic
+    // ============================================
+
+    // Default configuration for element SDK
+    const defaultConfig = {
+      app_title: 'SimuLAN',
+      primary_color: '#3b82f6',
+      secondary_color: '#1e293b',
+      accent_color: '#22c55e',
+      text_color: '#e2e8f0',
+      surface_color: '#334155'
+    };
+
+    // Current configuration
+    let config = { ...defaultConfig };
+
+    // ============================================
+    // IP ADDRESS UTILITIES
+    // ============================================
+
+    /**
+     * Parse an IP address string into an array of octets
+     * @param {string} ip - IP address string (e.g., "192.168.1.1")
+     * @returns {number[]|null} Array of 4 octets or null if invalid
+     */
+    function parseIP(ip) {
+      if (!ip || typeof ip !== 'string') return null;
+      const parts = ip.trim().split('.');
+      if (parts.length !== 4) return null;
+      
+      const octets = parts.map(p => parseInt(p, 10));
+      if (octets.some(o => isNaN(o) || o < 0 || o > 255)) return null;
+      
+      return octets;
+    }
+
+    /**
+     * Convert IP octets to a 32-bit integer
+     * @param {number[]} octets - Array of 4 octets
+     * @returns {number} 32-bit integer representation
+     */
+    function ipToInt(octets) {
+      return ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
+    }
+
+    /**
+     * Convert a 32-bit integer to IP string
+     * @param {number} int - 32-bit integer
+     * @returns {string} IP address string
+     */
+    function intToIP(int) {
+      return [
+        (int >>> 24) & 255,
+        (int >>> 16) & 255,
+        (int >>> 8) & 255,
+        int & 255
+      ].join('.');
+    }
+
+    /**
+     * Convert CIDR notation or subnet mask to prefix length
+     * @param {string} mask - Subnet mask (e.g., "255.255.255.0") or CIDR (e.g., "/24")
+     * @returns {number|null} Prefix length (0-32) or null if invalid
+     */
+    function parseCIDR(mask) {
+      if (!mask) return null;
+      mask = mask.trim();
+      
+      // Handle CIDR notation
+      if (mask.startsWith('/')) {
+        const cidr = parseInt(mask.slice(1), 10);
+        return (cidr >= 0 && cidr <= 32) ? cidr : null;
+      }
+      
+      // Handle subnet mask
+      const octets = parseIP(mask);
+      if (!octets) return null;
+      
+      const binary = octets.map(o => o.toString(2).padStart(8, '0')).join('');
+      const match = binary.match(/^(1*)(0*)$/);
+      if (!match) return null;
+      
+      return match[1].length;
+    }
+
+    /**
+     * Convert CIDR prefix to subnet mask
+     * @param {number} cidr - Prefix length (0-32)
+     * @returns {string} Subnet mask string
+     */
+    function cidrToMask(cidr) {
+      const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
+      return intToIP(mask);
+    }
+
+    /**
+     * Calculate network address from IP and CIDR
+     * @param {number[]} ip - IP address octets
+     * @param {number} cidr - CIDR prefix length
+     * @returns {string} Network address string
+     */
+    function getNetworkAddress(ip, cidr) {
+      const ipInt = ipToInt(ip);
+      const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
+      return intToIP(ipInt & mask);
+    }
+
+    /**
+     * Calculate broadcast address from IP and CIDR
+     * @param {number[]} ip - IP address octets
+     * @param {number} cidr - CIDR prefix length
+     * @returns {string} Broadcast address string
+     */
+    function getBroadcastAddress(ip, cidr) {
+      const ipInt = ipToInt(ip);
+      const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
+      const hostMask = ~mask >>> 0;
+      return intToIP((ipInt & mask) | hostMask);
+    }
+
+    /**
+     * Check if two IPs are in the same subnet
+     * @param {string} ip1 - First IP address
+     * @param {string} ip2 - Second IP address
+     * @param {number} cidr1 - First IP's CIDR
+     * @param {number} cidr2 - Second IP's CIDR
+     * @returns {boolean} True if in same subnet
+     */
+    function sameSubnet(ip1, ip2, cidr1, cidr2) {
+      const oct1 = parseIP(ip1);
+      const oct2 = parseIP(ip2);
+      if (!oct1 || !oct2 || !cidr1 || !cidr2) return false;
+      
+      // Use the smaller CIDR (larger subnet) for comparison
+      const cidr = Math.min(cidr1, cidr2);
+      const net1 = getNetworkAddress(oct1, cidr);
+      const net2 = getNetworkAddress(oct2, cidr);
+      
+      return net1 === net2;
+    }
+
+    /**
+     * Convert IP to binary string representation
+     * @param {string} ip - IP address string
+     * @returns {string} Binary representation with dots
+     */
+    function ipToBinary(ip) {
+      const octets = parseIP(ip);
+      if (!octets) return '';
+      return octets.map(o => o.toString(2).padStart(8, '0')).join('.');
+    }
+
+    /**
+     * Validate an IP address string
+     * @param {string} ip - IP address to validate
+     * @returns {boolean} True if valid
+     */
+    function isValidIP(ip) {
+      return parseIP(ip) !== null;
+    }
+
+    // ============================================
+    // NETWORK STATE MANAGEMENT
+    // ============================================
+
+    // Device types with their properties
+    const DEVICE_TYPES = {
+      pc: { name: 'PC', color: 'text-blue-400', hasIP: true, isNetworkDevice: false },
+      laptop: { name: 'Laptop', color: 'text-cyan-400', hasIP: true, isNetworkDevice: false },
+      server: { name: 'Server', color: 'text-purple-400', hasIP: true, isNetworkDevice: false },
+      switch: { name: 'Switch', color: 'text-green-400', hasIP: false, isNetworkDevice: true },
+      router: { name: 'Router', color: 'text-amber-400', hasIP: true, isNetworkDevice: true, hasInterfaces: true },
+      printer: { name: 'Printer', color: 'text-pink-400', hasIP: true, isNetworkDevice: false },
+      ap: { name: 'AP', color: 'text-teal-400', hasIP: true, isNetworkDevice: false },
+      firewall: { name: 'Firewall', color: 'text-red-400', hasIP: true, isNetworkDevice: true, hasRules: true },
+      cloud: { name: 'Internet', color: 'text-sky-400', hasIP: false, isNetworkDevice: true }
+    };
+
+    // Network state
+    let networkState = {
+      devices: [],
+      connections: [],
+      firewallRules: [],
+      selectedDevice: null,
+      connectMode: false,
+      connectSource: null,
+      deviceCounter: 0
+    };
+
+    // Saved topologies from Data SDK
+    let savedTopologies = [];
+
+    /**
+     * Generate a unique device ID
+     * @returns {string} Unique device ID
+     */
+    function generateDeviceId() {
+      return `device_${Date.now()}_${++networkState.deviceCounter}`;
+    }
+
+    /**
+     * Create a new device object
+     * @param {string} type - Device type
+     * @param {number} x - X position
+     * @param {number} y - Y position
+     * @returns {object} Device object
+     */
+    function createDevice(type, x, y) {
+      const deviceType = DEVICE_TYPES[type];
+      const id = generateDeviceId();
+      
+      const device = {
+        id,
+        type,
+        name: `${deviceType.name}-${networkState.devices.length + 1}`,
+        x,
+        y,
+        config: {}
+      };
+
+      // Add network configuration for IP-capable devices
+      if (deviceType.hasIP) {
+        device.config.ip = '';
+        device.config.cidr = 24;
+        device.config.gateway = '';
+        device.config.dns = '';
+      }
+
+      // Add interfaces for routers
+      if (deviceType.hasInterfaces) {
+        device.interfaces = [
+          { id: `${id}_int0`, ip: '', cidr: 24, name: 'eth0', vlan: null }
+        ];
+      }
+
+      // Add VLAN configuration for switches
+      if (type === 'switch') {
+        device.vlans = [1];  // Default VLAN 1
+        device.ports = {};   // Port config per connection: { mode, vlan, allowedVlans }
+      }
+
+      return device;
+    }
+
+    /**
+     * Add a device to the network
+     * @param {object} device - Device object
+     */
+    function addDevice(device) {
+      networkState.devices.push(device);
+      renderDevice(device);
+      updateStats();
+      logTerminal(`Added ${DEVICE_TYPES[device.type].name}: ${device.name}`, 'info');
+    }
+
+    /**
+     * Remove a device from the network
+     * @param {string} deviceId - Device ID to remove
+     */
+    function removeDevice(deviceId) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device) return;
+
+      // Remove all connections to this device
+      networkState.connections = networkState.connections.filter(
+        c => c.from !== deviceId && c.to !== deviceId
+      );
+
+      // Remove from devices array
+      networkState.devices = networkState.devices.filter(d => d.id !== deviceId);
+
+      // Remove from DOM
+      const el = document.getElementById(deviceId);
+      if (el) el.remove();
+
+      // Deselect if selected
+      if (networkState.selectedDevice === deviceId) {
+        networkState.selectedDevice = null;
+        updateConfigPanel();
+      }
+
+      renderConnections();
+      updateStats();
+      logTerminal(`Removed device: ${device.name}`, 'warning');
+    }
+
+    /**
+     * Create a connection between two devices
+     * @param {string} fromId - Source device ID
+     * @param {string} toId - Target device ID
+     */
+    function createConnection(fromId, toId) {
+      // Check if connection already exists
+      const exists = networkState.connections.some(
+        c => (c.from === fromId && c.to === toId) || (c.from === toId && c.to === fromId)
+      );
+
+      if (exists) {
+        logTerminal('Connection already exists', 'warning');
+        return;
+      }
+
+      const fromDevice = networkState.devices.find(d => d.id === fromId);
+      const toDevice = networkState.devices.find(d => d.id === toId);
+
+      if (!fromDevice || !toDevice) return;
+
+      const connId = `conn_${Date.now()}`;
+      networkState.connections.push({
+        id: connId,
+        from: fromId,
+        to: toId
+      });
+
+      // Initialize switch ports for this connection
+      initializeSwitchPort(fromDevice, toDevice, connId);
+      initializeSwitchPort(toDevice, fromDevice, connId);
+
+      renderConnections();
+      updateStats();
+      logTerminal(`Connected ${fromDevice.name} to ${toDevice.name}`, 'success');
+    }
+
+    /**
+     * Initialize switch port configuration for a connection
+     */
+    function initializeSwitchPort(device, otherDevice, connId) {
+      if (device.type !== 'switch') return;
+      if (!device.ports) device.ports = {};
+      if (!device.ports[connId]) {
+        // Auto-set trunk mode when connecting to a router
+        const isTrunk = otherDevice.type === 'router';
+        device.ports[connId] = {
+          mode: isTrunk ? 'trunk' : 'access',
+          vlan: 1,
+          allowedVlans: isTrunk ? [...(device.vlans || [1])] : [1]
+        };
+      }
+    }
+
+    /**
+     * Remove a connection
+     * @param {string} connId - Connection ID
+     */
+    function removeConnection(connId) {
+      // Clean up switch ports for this connection
+      const conn = networkState.connections.find(c => c.id === connId);
+      if (conn) {
+        const fromDevice = networkState.devices.find(d => d.id === conn.from);
+        const toDevice = networkState.devices.find(d => d.id === conn.to);
+        if (fromDevice?.ports) delete fromDevice.ports[connId];
+        if (toDevice?.ports) delete toDevice.ports[connId];
+      }
+
+      networkState.connections = networkState.connections.filter(c => c.id !== connId);
+      renderConnections();
+      updateStats();
+      logTerminal('Connection removed', 'warning');
+    }
+
+    // ============================================
+    // UI RENDERING
+    // ============================================
+
+    /**
+     * Get SVG icon for a device type
+     * @param {string} type - Device type
+     * @returns {string} SVG HTML string
+     */
+    function getDeviceIcon(type) {
+      const icons = {
+        pc: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+        </svg>`,
+        laptop: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v8H4V6z"/>
+          <path d="M2 18h20v1a2 2 0 01-2 2H4a2 2 0 01-2-2v-1z"/>
+        </svg>`,
+        server: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="2" width="18" height="6" rx="1"/>
+          <rect x="3" y="9" width="18" height="6" rx="1"/>
+          <rect x="3" y="16" width="18" height="6" rx="1"/>
+          <circle cx="7" cy="5" r="1" fill="currentColor"/>
+          <circle cx="7" cy="12" r="1" fill="currentColor"/>
+          <circle cx="7" cy="19" r="1" fill="currentColor"/>
+        </svg>`,
+        switch: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="8" width="20" height="8" rx="2"/>
+          <circle cx="6" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="10" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="14" cy="12" r="1.5" fill="currentColor"/>
+          <circle cx="18" cy="12" r="1.5" fill="currentColor"/>
+        </svg>`,
+        router: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>`,
+        printer: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M6 9V2h12v7"/>
+          <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8" rx="1"/>
+        </svg>`,
+        ap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="18" r="2"/>
+          <path d="M8.5 14.5a5 5 0 017 0"/>
+          <path d="M5 11a9 9 0 0114 0"/>
+          <path d="M1.5 7.5a13 13 0 0121 0"/>
+        </svg>`,
+        firewall: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+        </svg>`,
+        cloud: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+        </svg>`
+      };
+      return icons[type] || icons.pc;
+    }
+
+    /**
+     * Render a device on the canvas
+     * @param {object} device - Device object
+     */
+    /**
+     * Get display label for device VLAN/subnet info
+     */
+    function getDeviceVlanLabel(device) {
+      if (device.type === 'switch') {
+        const vlans = device.vlans || [1];
+        return vlans.length > 1 ? `VLANs: ${vlans.filter(v => v !== 1).join(',')}` : '';
+      }
+      const parts = [];
+      if (device.config?.cidr) parts.push(`/${device.config.cidr}`);
+      const vlan = getDeviceVlan(device.id);
+      if (vlan && vlan !== 1) parts.push(`VLAN${vlan}`);
+      return parts.join(' ');
+    }
+
+    function renderDevice(device) {
+      const canvas = document.getElementById('topology-inner') || document.getElementById('topology-canvas');
+      const deviceType = DEVICE_TYPES[device.type];
+
+      const el = document.createElement('div');
+      el.id = device.id;
+      el.className = `device absolute flex flex-col items-center p-2 select-none ${deviceType.color}`;
+      el.style.left = `${device.x}px`;
+      el.style.top = `${device.y}px`;
+      el.style.width = '80px';
+      el.style.zIndex = '20';
+      el.dataset.deviceId = device.id;
+
+      // Determine subnet color if device has IP
+      let subnetClass = '';
+      if (device.config.ip && device.config.cidr) {
+        const subnetIndex = getSubnetIndex(device.config.ip, device.config.cidr);
+        if (subnetIndex >= 0) {
+          subnetClass = `subnet-${(subnetIndex % 5) + 1}`;
+        }
+      }
+
+      const vlanLabel = getDeviceVlanLabel(device);
+      el.innerHTML = `
+        <div class="w-12 h-12 bg-slate-700 rounded-lg flex items-center justify-center ${subnetClass}" ${subnetClass ? `style="border: 2px solid var(--subnet-color)"` : ''}>
+          ${getDeviceIcon(device.type)}
+        </div>
+        <span class="text-xs mt-1 text-center truncate w-full px-1 rounded bg-slate-900/90">${device.name}</span>
+        ${device.config.ip ? `<span class="mono text-[10px] text-slate-400 px-1 rounded bg-slate-900/90">${device.config.ip}</span>` : ''}
+        ${vlanLabel ? `<span class="mono text-[10px] text-orange-400 px-1 rounded bg-slate-900/90">${vlanLabel}</span>` : ''}
+      `;
+
+      // Make device draggable
+      setupDeviceDrag(el, device);
+
+      // Click to select
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectDevice(device.id);
+      });
+
+      // Double-click to configure
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        selectDevice(device.id);
+        document.querySelector('[data-tab="device"]').click();
+      });
+
+      canvas.appendChild(el);
+    }
+
+    /**
+     * Setup drag functionality for a device element
+     * @param {HTMLElement} el - Device DOM element
+     * @param {object} device - Device object
+     */
+    function setupDeviceDrag(el, device) {
+      let isDragging = false;
+      let startX, startY, initialX, initialY;
+
+      el.addEventListener('mousedown', (e) => {
+        if (networkState.connectMode) return;
+        
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialX = device.x;
+        initialY = device.y;
+
+        el.style.zIndex = '100';
+        el.style.cursor = 'grabbing';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        device.x = Math.max(0, initialX + dx);
+        device.y = Math.max(0, initialY + dy);
+
+        el.style.left = `${device.x}px`;
+        el.style.top = `${device.y}px`;
+
+        renderConnections();
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          el.style.zIndex = '';
+          el.style.cursor = 'move';
+        }
+      });
+    }
+
+    /**
+     * Render all connections
+     */
+    function renderConnections() {
+      const svg = document.getElementById('connections-svg');
+      svg.innerHTML = '';
+
+      networkState.connections.forEach(conn => {
+        const fromDevice = networkState.devices.find(d => d.id === conn.from);
+        const toDevice = networkState.devices.find(d => d.id === conn.to);
+
+        if (!fromDevice || !toDevice) return;
+
+        const x1 = fromDevice.x + 40;
+        const y1 = fromDevice.y + 30;
+        const x2 = toDevice.x + 40;
+        const y2 = toDevice.y + 30;
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('class', 'connection-line');
+        line.setAttribute('data-conn-id', conn.id);
+        line.style.pointerEvents = 'stroke';
+
+        // Add tooltip with SVG title element
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${fromDevice.name} ↔ ${toDevice.name}\nShift+Click to delete`;
+        line.appendChild(title);
+
+        // Click to select/delete connection
+        line.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (e.shiftKey) {
+            removeConnection(conn.id);
+          }
+        });
+
+        svg.appendChild(line);
+      });
+    }
+
+    /**
+     * Select a device
+     * @param {string} deviceId - Device ID
+     */
+    function selectDevice(deviceId) {
+      // Handle connect mode
+      if (networkState.connectMode) {
+        if (!networkState.connectSource) {
+          networkState.connectSource = deviceId;
+          logTerminal(`Selected ${networkState.devices.find(d => d.id === deviceId).name} as source. Click another device to connect.`, 'info');
+          updateStatus('Select destination device', 'connecting');
+        } else if (networkState.connectSource !== deviceId) {
+          createConnection(networkState.connectSource, deviceId);
+          exitConnectMode();
+        }
+        return;
+      }
+
+      // Deselect previous
+      document.querySelectorAll('.device.selected').forEach(el => {
+        el.classList.remove('selected');
+      });
+
+      // Select new
+      networkState.selectedDevice = deviceId;
+      const el = document.getElementById(deviceId);
+      if (el) el.classList.add('selected');
+
+      updateConfigPanel();
+    }
+
+    /**
+     * Update the configuration panel based on selected device
+     */
+    function updateConfigPanel() {
+      const noSelection = document.getElementById('no-selection');
+      const deviceConfig = document.getElementById('device-config');
+      const networkConfig = document.getElementById('network-config');
+      const routerInterfaces = document.getElementById('router-interfaces');
+      const subnetInfo = document.getElementById('subnet-info');
+
+      if (!networkState.selectedDevice) {
+        noSelection.classList.remove('hidden');
+        deviceConfig.classList.add('hidden');
+        return;
+      }
+
+      const device = networkState.devices.find(d => d.id === networkState.selectedDevice);
+      if (!device) return;
+
+      noSelection.classList.add('hidden');
+      deviceConfig.classList.remove('hidden');
+
+      const deviceType = DEVICE_TYPES[device.type];
+
+      // Update device info
+      document.getElementById('device-icon').innerHTML = `<div class="w-full h-full flex items-center justify-center ${deviceType.color}">${getDeviceIcon(device.type)}</div>`;
+      document.getElementById('device-name').value = device.name;
+      document.getElementById('device-type-label').textContent = `Type: ${deviceType.name}`;
+
+      // Show/hide network config based on device type
+      if (deviceType.hasIP) {
+        networkConfig.classList.remove('hidden');
+        document.getElementById('ip-address').value = device.config.ip || '';
+        document.getElementById('subnet-mask').value = device.config.cidr ? `/${device.config.cidr}` : '';
+        document.getElementById('default-gateway').value = device.config.gateway || '';
+        document.getElementById('dns-server').value = device.config.dns || '';
+
+        // Update subnet info if IP is configured
+        if (device.config.ip && device.config.cidr) {
+          updateSubnetInfo(device.config.ip, device.config.cidr);
+          subnetInfo.classList.remove('hidden');
+        } else {
+          subnetInfo.classList.add('hidden');
+        }
+      } else {
+        networkConfig.classList.add('hidden');
+        subnetInfo.classList.add('hidden');
+      }
+
+      // Show router interfaces
+      if (deviceType.hasInterfaces) {
+        routerInterfaces.classList.remove('hidden');
+        renderRouterInterfaces(device);
+      } else {
+        routerInterfaces.classList.add('hidden');
+      }
+
+      // Show switch VLAN configuration
+      const switchVlans = document.getElementById('switch-vlans');
+      if (device.type === 'switch') {
+        switchVlans.classList.remove('hidden');
+        renderSwitchVlans(device);
+      } else {
+        switchVlans.classList.add('hidden');
+      }
+    }
+
+    /**
+     * Render router interfaces
+     * @param {object} device - Router device
+     */
+    function renderRouterInterfaces(device) {
+      const container = document.getElementById('interfaces-list');
+      container.innerHTML = '';
+
+      device.interfaces.forEach((iface, index) => {
+        const div = document.createElement('div');
+        div.className = 'p-2 bg-slate-700 rounded text-xs space-y-2';
+        const vlanDisplay = iface.vlan ? `.${iface.vlan}` : '';
+        div.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-medium">${iface.name}${vlanDisplay}</span>
+            ${index > 0 ? `<button class="text-red-400 hover:text-red-300" onclick="removeInterface('${device.id}', ${index})">×</button>` : ''}
+          </div>
+          <input type="text" class="mono w-full bg-slate-600 border border-slate-500 rounded px-2 py-1"
+            placeholder="192.168.${index + 1}.1" value="${iface.ip || ''}"
+            onchange="updateInterface('${device.id}', ${index}, 'ip', this.value)">
+          <div class="flex gap-2">
+            <input type="text" class="mono w-1/2 bg-slate-600 border border-slate-500 rounded px-2 py-1"
+              placeholder="/24" value="${iface.cidr ? '/' + iface.cidr : ''}"
+              onchange="updateInterface('${device.id}', ${index}, 'cidr', this.value)">
+            <input type="text" class="mono w-1/2 bg-slate-600 border border-slate-500 rounded px-2 py-1"
+              placeholder="VLAN (opt)" value="${iface.vlan || ''}"
+              onchange="updateInterface('${device.id}', ${index}, 'vlan', this.value)">
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    /**
+     * Render switch VLAN configuration
+     * @param {object} device - Switch device
+     */
+    function renderSwitchVlans(device) {
+      // Ensure VLAN data exists
+      if (!device.vlans) device.vlans = [1];
+      if (!device.ports) device.ports = {};
+
+      // Render VLAN list
+      const vlanList = document.getElementById('vlan-list');
+      vlanList.innerHTML = device.vlans.map(vlan => `
+        <span class="px-2 py-1 bg-slate-600 rounded text-xs flex items-center gap-1">
+          VLAN ${vlan}
+          ${vlan !== 1 ? `<button class="text-red-400 hover:text-red-300" onclick="removeVlan('${device.id}', ${vlan})">×</button>` : ''}
+        </span>
+      `).join('');
+
+      // Get connections for this switch
+      const connections = networkState.connections.filter(
+        c => c.from === device.id || c.to === device.id
+      );
+
+      // Render port configuration
+      const portList = document.getElementById('port-list');
+      if (connections.length === 0) {
+        portList.innerHTML = '<div class="text-xs text-slate-500">No connections</div>';
+        return;
+      }
+
+      portList.innerHTML = connections.map(conn => {
+        const otherDeviceId = conn.from === device.id ? conn.to : conn.from;
+        const otherDevice = networkState.devices.find(d => d.id === otherDeviceId);
+        // Ensure port config exists (auto-trunk for routers)
+        if (!device.ports[conn.id]) {
+          const isTrunk = otherDevice?.type === 'router';
+          device.ports[conn.id] = {
+            mode: isTrunk ? 'trunk' : 'access',
+            vlan: 1,
+            allowedVlans: isTrunk ? [...device.vlans] : [1]
+          };
+        }
+        const portConfig = device.ports[conn.id];
+
+        return `
+          <div class="p-2 bg-slate-700 rounded text-xs space-y-2">
+            <div class="font-medium text-slate-300">${otherDevice?.name || 'Unknown'}</div>
+            <div class="flex items-center gap-2">
+              <select class="bg-slate-600 border border-slate-500 rounded px-2 py-1 text-xs"
+                onchange="updatePortMode('${device.id}', '${conn.id}', this.value)">
+                <option value="access" ${portConfig.mode === 'access' ? 'selected' : ''}>Access</option>
+                <option value="trunk" ${portConfig.mode === 'trunk' ? 'selected' : ''}>Trunk</option>
+              </select>
+              ${portConfig.mode === 'access' ? `
+                <select class="bg-slate-600 border border-slate-500 rounded px-2 py-1 text-xs flex-1"
+                  onchange="updatePortVlan('${device.id}', '${conn.id}', parseInt(this.value))">
+                  ${device.vlans.map(v => `<option value="${v}" ${portConfig.vlan === v ? 'selected' : ''}>VLAN ${v}</option>`).join('')}
+                </select>
+              ` : `
+                <span class="text-slate-400">All VLANs</span>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // VLAN management functions
+    window.addVlan = function(deviceId) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      const input = document.getElementById('new-vlan-id');
+      const vlanId = parseInt(input.value);
+
+      if (!device || isNaN(vlanId) || vlanId < 1 || vlanId > 4094) {
+        logTerminal('Invalid VLAN ID (1-4094)', 'error');
+        return;
+      }
+
+      if (!device.vlans.includes(vlanId)) {
+        device.vlans.push(vlanId);
+        device.vlans.sort((a, b) => a - b);
+
+        // Add to trunk ports automatically
+        if (device.ports) {
+          Object.keys(device.ports).forEach(connId => {
+            if (device.ports[connId].mode === 'trunk' && !device.ports[connId].allowedVlans.includes(vlanId)) {
+              device.ports[connId].allowedVlans.push(vlanId);
+              device.ports[connId].allowedVlans.sort((a, b) => a - b);
+            }
+          });
+        }
+
+        logTerminal(`Added VLAN ${vlanId} to ${device.name}`, 'success');
+      }
+
+      input.value = '';
+      renderSwitchVlans(device);
+    };
+
+    window.removeVlan = function(deviceId, vlanId) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device || vlanId === 1) return;
+
+      device.vlans = device.vlans.filter(v => v !== vlanId);
+
+      // Reset ports using this VLAN to VLAN 1
+      Object.keys(device.ports).forEach(connId => {
+        if (device.ports[connId].vlan === vlanId) {
+          device.ports[connId].vlan = 1;
+        }
+        device.ports[connId].allowedVlans = device.ports[connId].allowedVlans.filter(v => v !== vlanId);
+      });
+
+      logTerminal(`Removed VLAN ${vlanId} from ${device.name}`, 'warning');
+      renderSwitchVlans(device);
+    };
+
+    window.updatePortMode = function(deviceId, connId, mode) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device || !device.ports[connId]) return;
+
+      device.ports[connId].mode = mode;
+      if (mode === 'trunk') {
+        device.ports[connId].allowedVlans = [...device.vlans];
+      }
+
+      renderSwitchVlans(device);
+      renderConnections();
+    };
+
+    window.updatePortVlan = function(deviceId, connId, vlanId) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device || !device.ports[connId]) return;
+
+      device.ports[connId].vlan = vlanId;
+      renderConnections();
+    };
+
+    /**
+     * Update subnet information display
+     * @param {string} ip - IP address
+     * @param {number} cidr - CIDR prefix length
+     */
+    function updateSubnetInfo(ip, cidr) {
+      const octets = parseIP(ip);
+      if (!octets) return;
+
+      const network = getNetworkAddress(octets, cidr);
+      const broadcast = getBroadcastAddress(octets, cidr);
+      const hostBits = 32 - cidr;
+      const totalHosts = Math.pow(2, hostBits) - 2;
+
+      const networkOctets = parseIP(network);
+      const broadcastOctets = parseIP(broadcast);
+
+      const firstHost = intToIP(ipToInt(networkOctets) + 1);
+      const lastHost = intToIP(ipToInt(broadcastOctets) - 1);
+
+      document.getElementById('info-network').textContent = network;
+      document.getElementById('info-broadcast').textContent = broadcast;
+      document.getElementById('info-first').textContent = firstHost;
+      document.getElementById('info-last').textContent = lastHost;
+      document.getElementById('info-hosts').textContent = totalHosts > 0 ? totalHosts.toLocaleString() : '0';
+    }
+
+    /**
+     * Update network statistics display
+     */
+    function updateStats() {
+      document.getElementById('stat-devices').textContent = networkState.devices.length;
+      document.getElementById('stat-connections').textContent = networkState.connections.length;
+      document.getElementById('stat-routers').textContent = networkState.devices.filter(d => d.type === 'router').length;
+
+      // Count unique subnets
+      const subnets = new Set();
+      networkState.devices.forEach(d => {
+        if (d.config.ip && d.config.cidr) {
+          const network = getNetworkAddress(parseIP(d.config.ip), d.config.cidr);
+          subnets.add(`${network}/${d.config.cidr}`);
+        }
+      });
+      document.getElementById('stat-subnets').textContent = subnets.size;
+
+      // Update subnet list
+      const subnetList = document.getElementById('subnet-list');
+      if (subnets.size > 0) {
+        const colors = ['bg-blue-500', 'bg-green-500', 'bg-amber-500', 'bg-pink-500', 'bg-purple-500'];
+        subnetList.innerHTML = Array.from(subnets).map((subnet, i) => `
+          <div class="flex items-center gap-2 text-sm">
+            <div class="w-3 h-3 rounded ${colors[i % colors.length]}"></div>
+            <span class="mono">${subnet}</span>
+          </div>
+        `).join('');
+      } else {
+        subnetList.innerHTML = '<p class="text-sm text-slate-400">No subnets configured</p>';
+      }
+    }
+
+    /**
+     * Get subnet index for color coding
+     * @param {string} ip - IP address
+     * @param {number} cidr - CIDR prefix
+     * @returns {number} Subnet index
+     */
+    function getSubnetIndex(ip, cidr) {
+      const octets = parseIP(ip);
+      if (!octets) return -1;
+      
+      const network = getNetworkAddress(octets, cidr);
+      const subnets = [];
+      
+      networkState.devices.forEach(d => {
+        if (d.config.ip && d.config.cidr) {
+          const net = getNetworkAddress(parseIP(d.config.ip), d.config.cidr);
+          if (!subnets.includes(`${net}/${d.config.cidr}`)) {
+            subnets.push(`${net}/${d.config.cidr}`);
+          }
+        }
+      });
+      
+      return subnets.indexOf(`${network}/${cidr}`);
+    }
+
+    /**
+     * Update device rendering (refresh visual state)
+     * @param {object} device - Device to refresh
+     */
+    function refreshDeviceRender(device) {
+      const el = document.getElementById(device.id);
+      if (!el) return;
+
+      const deviceType = DEVICE_TYPES[device.type];
+      let subnetClass = '';
+      if (device.config.ip && device.config.cidr) {
+        const subnetIndex = getSubnetIndex(device.config.ip, device.config.cidr);
+        if (subnetIndex >= 0) {
+          subnetClass = `subnet-${(subnetIndex % 5) + 1}`;
+        }
+      }
+
+      const vlanLabel = getDeviceVlanLabel(device);
+      el.innerHTML = `
+        <div class="w-12 h-12 bg-slate-700 rounded-lg flex items-center justify-center ${subnetClass}" ${subnetClass ? `style="border: 2px solid var(--subnet-color)"` : ''}>
+          ${getDeviceIcon(device.type)}
+        </div>
+        <span class="text-xs mt-1 text-center truncate w-full px-1 rounded bg-slate-900/90">${device.name}</span>
+        ${device.config.ip ? `<span class="mono text-[10px] text-slate-400 px-1 rounded bg-slate-900/90">${device.config.ip}</span>` : ''}
+        ${vlanLabel ? `<span class="mono text-[10px] text-orange-400 px-1 rounded bg-slate-900/90">${vlanLabel}</span>` : ''}
+      `;
+    }
+
+    // ============================================
+    // PACKET SIMULATION
+    // ============================================
+
+    /**
+     * Find path between two devices using BFS
+     * @param {string} fromId - Source device ID
+     * @param {string} toId - Target device ID
+     * @returns {object} Path information
+     */
+    /**
+     * Get the VLAN a device is on (based on switch port it's connected to)
+     */
+    function getDeviceVlan(deviceId) {
+      // Find connections to switches
+      for (const conn of networkState.connections) {
+        let switchId, connectedId;
+        if (conn.from === deviceId) {
+          switchId = conn.to;
+          connectedId = conn.from;
+        } else if (conn.to === deviceId) {
+          switchId = conn.from;
+          connectedId = conn.to;
+        } else {
+          continue;
+        }
+
+        const switchDevice = networkState.devices.find(d => d.id === switchId);
+        if (switchDevice?.type === 'switch' && switchDevice.ports?.[conn.id]) {
+          const portConfig = switchDevice.ports[conn.id];
+          if (portConfig.mode === 'access') {
+            return portConfig.vlan;
+          }
+          // Trunk port - return null (can handle multiple VLANs)
+          return null;
+        }
+      }
+      return 1; // Default VLAN
+    }
+
+    /**
+     * Check if a connection through a switch respects VLAN boundaries
+     */
+    function canTraverseSwitch(switchDevice, fromConnId, toConnId, vlanId) {
+      if (!switchDevice.ports) return true;
+
+      const fromPort = switchDevice.ports[fromConnId];
+      const toPort = switchDevice.ports[toConnId];
+
+      if (!fromPort || !toPort) return true;
+
+      // Check if VLAN can pass through both ports
+      const fromAllows = fromPort.mode === 'trunk'
+        ? fromPort.allowedVlans.includes(vlanId)
+        : fromPort.vlan === vlanId;
+
+      const toAllows = toPort.mode === 'trunk'
+        ? toPort.allowedVlans.includes(vlanId)
+        : toPort.vlan === vlanId;
+
+      return fromAllows && toAllows;
+    }
+
+    /**
+     * Find connection ID between two devices
+     */
+    function findConnectionId(deviceId1, deviceId2) {
+      const conn = networkState.connections.find(
+        c => (c.from === deviceId1 && c.to === deviceId2) ||
+             (c.from === deviceId2 && c.to === deviceId1)
+      );
+      return conn?.id;
+    }
+
+    /**
+     * VLAN-aware BFS pathfinding
+     */
+    function bfsPathVlanAware(fromId, toId, adjacency, vlanId) {
+      const visited = new Set([fromId]);
+      const queue = [[fromId]];
+
+      while (queue.length > 0) {
+        const path = queue.shift();
+        const current = path[path.length - 1];
+
+        if (current === toId) {
+          return path;
+        }
+
+        const currentDevice = networkState.devices.find(d => d.id === current);
+
+        for (const neighbor of adjacency.get(current) || []) {
+          if (visited.has(neighbor)) continue;
+
+          const neighborDevice = networkState.devices.find(d => d.id === neighbor);
+
+          // Check VLAN constraints when traversing through a switch
+          if (currentDevice?.type === 'switch') {
+            // Get connections for previous and next hop
+            const prevDevice = path.length > 1 ? path[path.length - 2] : null;
+            if (prevDevice) {
+              const fromConnId = findConnectionId(prevDevice, current);
+              const toConnId = findConnectionId(current, neighbor);
+              if (!canTraverseSwitch(currentDevice, fromConnId, toConnId, vlanId)) {
+                continue; // VLAN doesn't match, can't traverse
+              }
+            }
+          }
+
+          visited.add(neighbor);
+          queue.push([...path, neighbor]);
+        }
+      }
+      return null;
+    }
+
+    function findPath(fromId, toId) {
+      const fromDevice = networkState.devices.find(d => d.id === fromId);
+      const toDevice = networkState.devices.find(d => d.id === toId);
+
+      if (!fromDevice || !toDevice) {
+        return { success: false, path: [], errors: ['Invalid devices'], warnings: [] };
+      }
+
+      // Build adjacency list
+      const adjacency = new Map();
+      networkState.devices.forEach(d => adjacency.set(d.id, []));
+      networkState.connections.forEach(c => {
+        adjacency.get(c.from).push(c.to);
+        adjacency.get(c.to).push(c.from);
+      });
+
+      // Check if same subnet (Layer 2 - no router needed)
+      const isSameSubnet = fromDevice.config.ip && toDevice.config.ip &&
+        fromDevice.config.cidr && toDevice.config.cidr &&
+        sameSubnet(fromDevice.config.ip, toDevice.config.ip, fromDevice.config.cidr, toDevice.config.cidr);
+
+      if (isSameSubnet) {
+        // Same subnet - find path respecting VLAN boundaries
+        const sourceVlan = getDeviceVlan(fromId) || 1;
+        const destVlan = getDeviceVlan(toId) || 1;
+
+        if (sourceVlan !== destVlan) {
+          return { success: false, path: [], errors: [`Devices are on different VLANs (VLAN ${sourceVlan} vs VLAN ${destVlan}) - requires router for inter-VLAN routing`], warnings: [] };
+        }
+
+        const path = bfsPathVlanAware(fromId, toId, adjacency, sourceVlan);
+        if (path) {
+          return analyzeNetworkPath(path, fromDevice, toDevice);
+        }
+        return { success: false, path: [], errors: ['No path exists - devices may be on different VLANs'], warnings: [] };
+      }
+
+      // Different subnets or different VLANs - MUST find path through a router
+      const sourceVlan = getDeviceVlan(fromId) || 1;
+      const destVlan = getDeviceVlan(toId) || 1;
+
+      // Find all routers in the network
+      const routers = networkState.devices.filter(d => d.type === 'router').map(d => d.id);
+
+      if (routers.length === 0) {
+        return { success: false, path: [], errors: ['No router in network - cannot route between subnets/VLANs'], warnings: [] };
+      }
+
+      // Try to find a path from source → router → destination (VLAN-aware)
+      let bestPath = null;
+      for (const routerId of routers) {
+        const pathToRouter = bfsPathVlanAware(fromId, routerId, adjacency, sourceVlan);
+        const pathFromRouter = bfsPathVlanAware(routerId, toId, adjacency, destVlan);
+
+        if (pathToRouter && pathFromRouter) {
+          // Combine paths (remove duplicate router)
+          const fullPath = [...pathToRouter, ...pathFromRouter.slice(1)];
+          if (!bestPath || fullPath.length < bestPath.length) {
+            bestPath = fullPath;
+          }
+        }
+      }
+
+      if (bestPath) {
+        return analyzeNetworkPath(bestPath, fromDevice, toDevice);
+      }
+
+      return { success: false, path: [], errors: ['No path through router exists between devices'], warnings: [] };
+    }
+
+    /**
+     * Simple BFS to find shortest path between two nodes
+     */
+    function bfsPath(fromId, toId, adjacency) {
+      const visited = new Set([fromId]);
+      const queue = [[fromId]];
+
+      while (queue.length > 0) {
+        const path = queue.shift();
+        const current = path[path.length - 1];
+
+        if (current === toId) {
+          return path;
+        }
+
+        for (const neighbor of adjacency.get(current) || []) {
+          if (!visited.has(neighbor)) {
+            visited.add(neighbor);
+            queue.push([...path, neighbor]);
+          }
+        }
+      }
+      return null;
+    }
+
+    /**
+     * Analyze network path for routing requirements
+     * @param {string[]} devicePath - Array of device IDs
+     * @param {object} source - Source device
+     * @param {object} destination - Destination device
+     * @returns {object} Analyzed path information
+     */
+    function analyzeNetworkPath(devicePath, source, destination) {
+      const result = {
+        success: true,
+        path: devicePath,
+        devices: devicePath.map(id => networkState.devices.find(d => d.id === id)),
+        sameSubnet: false,
+        needsRouter: false,
+        routerHops: [],
+        errors: [],
+        warnings: []
+      };
+
+      // Check if source has IP configuration
+      if (!source.config.ip || !source.config.cidr) {
+        result.success = false;
+        result.errors.push(`${source.name} does not have an IP address configured`);
+        return result;
+      }
+
+      // Check if destination has IP configuration  
+      if (!destination.config.ip || !destination.config.cidr) {
+        result.success = false;
+        result.errors.push(`${destination.name} does not have an IP address configured`);
+        return result;
+      }
+
+      // Check if same subnet
+      result.sameSubnet = sameSubnet(
+        source.config.ip, destination.config.ip,
+        source.config.cidr, destination.config.cidr
+      );
+
+      if (result.sameSubnet) {
+        // Same subnet - only needs switch (Layer 2)
+        const hasSwitch = devicePath.some(id => {
+          const d = networkState.devices.find(dev => dev.id === id);
+          return d && d.type === 'switch';
+        });
+
+        if (!hasSwitch && devicePath.length > 2) {
+          result.warnings.push('Direct connection - no switch in path');
+        }
+      } else {
+        // Different subnets - needs router (Layer 3)
+        result.needsRouter = true;
+
+        // Check if gateway is configured
+        if (!source.config.gateway) {
+          result.success = false;
+          result.errors.push(`${source.name} does not have a default gateway configured`);
+          return result;
+        }
+
+        // Find router in path
+        const router = devicePath.find(id => {
+          const d = networkState.devices.find(dev => dev.id === id);
+          return d && d.type === 'router';
+        });
+
+        if (!router) {
+          result.success = false;
+          result.errors.push('No router in path - cannot route between subnets');
+          return result;
+        }
+
+        // Verify router has interfaces for both subnets
+        const routerDevice = networkState.devices.find(d => d.id === router);
+        const sourceSubnet = getNetworkAddress(parseIP(source.config.ip), source.config.cidr);
+        const destSubnet = getNetworkAddress(parseIP(destination.config.ip), destination.config.cidr);
+
+        let hasSourceInterface = false;
+        let hasDestInterface = false;
+
+        // Check if router has interfaces configured
+        if (!routerDevice.interfaces || routerDevice.interfaces.length === 0) {
+          result.success = false;
+          result.errors.push(`${routerDevice.name} has no interfaces configured - cannot route between subnets`);
+          return result;
+        }
+
+        // Debug: Log what we're checking
+        result.warnings.push(`Checking router interfaces for subnets ${sourceSubnet} and ${destSubnet}`);
+
+        routerDevice.interfaces.forEach(iface => {
+          if (iface.ip && iface.cidr) {
+            const ifaceSubnet = getNetworkAddress(parseIP(iface.ip), iface.cidr);
+            result.warnings.push(`  Interface ${iface.name}: ${iface.ip}/${iface.cidr} → subnet ${ifaceSubnet}`);
+            if (ifaceSubnet === sourceSubnet) hasSourceInterface = true;
+            if (ifaceSubnet === destSubnet) hasDestInterface = true;
+          } else {
+            result.warnings.push(`  Interface ${iface.name}: not configured`);
+          }
+        });
+
+        if (!hasSourceInterface) {
+          result.success = false;
+          result.errors.push(`${routerDevice.name} has no interface for source subnet ${sourceSubnet}/${source.config.cidr}`);
+          return result;
+        }
+
+        if (!hasDestInterface) {
+          result.success = false;
+          result.errors.push(`${routerDevice.name} has no interface for destination subnet ${destSubnet}/${destination.config.cidr}`);
+          return result;
+        }
+
+        result.routerHops.push(routerDevice);
+      }
+
+      // Check firewall rules
+      const firewallBlocked = checkFirewallRules(source, destination);
+      if (firewallBlocked) {
+        result.success = false;
+        result.errors.push(`Blocked by firewall rule: ${firewallBlocked}`);
+      }
+
+      return result;
+    }
+
+    /**
+     * Check if traffic is blocked by firewall rules
+     * @param {object} source - Source device
+     * @param {object} destination - Destination device
+     * @returns {string|null} Blocking rule description or null
+     */
+    function checkFirewallRules(source, destination) {
+      if (!source.config.ip || !destination.config.ip) return null;
+
+      for (const rule of networkState.firewallRules) {
+        const sourceMatch = isInSubnet(source.config.ip, rule.source);
+        const destMatch = isInSubnet(destination.config.ip, rule.dest);
+
+        if (sourceMatch && destMatch && rule.action === 'deny') {
+          return `${rule.source} → ${rule.dest}`;
+        }
+      }
+
+      return null;
+    }
+
+    /**
+     * Check if an IP is within a subnet
+     * @param {string} ip - IP address to check
+     * @param {string} subnet - Subnet in CIDR notation (e.g., "192.168.1.0/24")
+     * @returns {boolean} True if IP is in subnet
+     */
+    function isInSubnet(ip, subnet) {
+      const [subnetIP, cidrStr] = subnet.split('/');
+      const cidr = parseInt(cidrStr, 10);
+      
+      const ipOctets = parseIP(ip);
+      const subnetOctets = parseIP(subnetIP);
+      
+      if (!ipOctets || !subnetOctets || isNaN(cidr)) return false;
+
+      const ipNetwork = getNetworkAddress(ipOctets, cidr);
+      const subnetNetwork = getNetworkAddress(subnetOctets, cidr);
+
+      return ipNetwork === subnetNetwork;
+    }
+
+    /**
+     * Animate a packet along a path
+     * @param {string[]} path - Array of device IDs
+     * @param {string} color - Packet color
+     * @param {function} onComplete - Callback when animation completes
+     */
+    function animatePacket(path, color = '#22c55e', onComplete = null) {
+      const container = document.getElementById('packets-container');
+      const packet = document.createElement('div');
+      packet.className = 'packet';
+      packet.style.backgroundColor = color;
+      packet.style.boxShadow = `0 0 10px ${color}`;
+      container.appendChild(packet);
+
+      let currentIndex = 0;
+
+      function moveToNext() {
+        if (currentIndex >= path.length - 1) {
+          packet.remove();
+          if (onComplete) onComplete();
+          return;
+        }
+
+        const fromDevice = networkState.devices.find(d => d.id === path[currentIndex]);
+        const toDevice = networkState.devices.find(d => d.id === path[currentIndex + 1]);
+
+        if (!fromDevice || !toDevice) {
+          packet.remove();
+          return;
+        }
+
+        // Highlight active connection
+        const connId = networkState.connections.find(c => 
+          (c.from === fromDevice.id && c.to === toDevice.id) ||
+          (c.to === fromDevice.id && c.from === toDevice.id)
+        )?.id;
+        
+        if (connId) {
+          const line = document.querySelector(`[data-conn-id="${connId}"]`);
+          if (line) line.classList.add('active');
+        }
+
+        const startX = fromDevice.x + 40;
+        const startY = fromDevice.y + 30;
+        const endX = toDevice.x + 40;
+        const endY = toDevice.y + 30;
+
+        packet.style.left = `${startX - 6}px`;
+        packet.style.top = `${startY - 6}px`;
+
+        const duration = 500;
+        const startTime = performance.now();
+
+        function animate(currentTime) {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+
+          const x = startX + (endX - startX) * progress;
+          const y = startY + (endY - startY) * progress;
+
+          packet.style.left = `${x - 6}px`;
+          packet.style.top = `${y - 6}px`;
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            // Remove highlight
+            if (connId) {
+              const line = document.querySelector(`[data-conn-id="${connId}"]`);
+              if (line) line.classList.remove('active');
+            }
+            currentIndex++;
+            setTimeout(moveToNext, 100);
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      moveToNext();
+    }
+
+    /**
+     * Run ping simulation between two devices
+     * @param {string} sourceId - Source device ID
+     * @param {string} destId - Destination device ID
+     */
+    async function runPingSimulation(sourceId, destId) {
+      const pathResult = findPath(sourceId, destId);
+      const source = networkState.devices.find(d => d.id === sourceId);
+      const dest = networkState.devices.find(d => d.id === destId);
+
+      logTerminal(`PING ${dest.config.ip || dest.name} from ${source.config.ip || source.name}`, 'info');
+
+      if (!pathResult.success) {
+        pathResult.errors.forEach(err => logTerminal(`Error: ${err}`, 'error'));
+        logTerminal('--- Ping failed ---', 'error');
+        return;
+      }
+
+      // Log path information
+      if (pathResult.sameSubnet) {
+        logTerminal('Path: Same subnet - Layer 2 forwarding (switch only)', 'info');
+      } else {
+        logTerminal('Path: Different subnets - Layer 3 routing required', 'info');
+        logTerminal(`Route: ${source.name} → Router → ${dest.name}`, 'info');
+      }
+
+      pathResult.warnings.forEach(warn => logTerminal(`Warning: ${warn}`, 'warning'));
+
+      // Animate packet going forward
+      logTerminal('Sending ICMP Echo Request...', 'info');
+      
+      await new Promise(resolve => {
+        animatePacket(pathResult.path, '#22c55e', resolve);
+      });
+
+      // Animate reply coming back
+      logTerminal('Receiving ICMP Echo Reply...', 'success');
+      
+      await new Promise(resolve => {
+        animatePacket([...pathResult.path].reverse(), '#3b82f6', resolve);
+      });
+
+      const latency = Math.floor(Math.random() * 10 + 5);
+      logTerminal(`Reply from ${dest.config.ip}: bytes=64 time=${latency}ms TTL=64`, 'success');
+      logTerminal('--- Ping successful ---', 'success');
+    }
+
+    // ============================================
+    // TERMINAL LOGGING
+    // ============================================
+
+    /**
+     * Log message to terminal
+     * @param {string} message - Message to log
+     * @param {string} type - Message type (info, success, warning, error)
+     */
+    function logTerminal(message, type = 'info') {
+      const terminal = document.getElementById('terminal');
+      const line = document.createElement('div');
+      line.className = 'terminal-line';
+
+      const colors = {
+        info: 'text-slate-300',
+        success: 'text-green-400',
+        warning: 'text-amber-400',
+        error: 'text-red-400'
+      };
+
+      const timestamp = new Date().toLocaleTimeString();
+      line.innerHTML = `<span class="text-slate-500">[${timestamp}]</span> <span class="${colors[type]}">${message}</span>`;
+      
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    /**
+     * Update status indicator
+     * @param {string} text - Status text
+     * @param {string} state - State (ready, connecting, simulating)
+     */
+    function updateStatus(text, state = 'ready') {
+      document.getElementById('status-text').textContent = text;
+      const indicator = document.getElementById('status-indicator');
+      
+      const colors = {
+        ready: 'bg-green-500',
+        connecting: 'bg-amber-500',
+        simulating: 'bg-blue-500',
+        error: 'bg-red-500'
+      };
+
+      indicator.className = `w-2 h-2 rounded-full ${colors[state] || colors.ready}`;
+    }
+
+    // ============================================
+    // MODE HANDLERS
+    // ============================================
+
+    /**
+     * Enter connect mode
+     */
+    function enterConnectMode() {
+      networkState.connectMode = true;
+      networkState.connectSource = null;
+      document.getElementById('btn-connect').classList.add('bg-blue-600');
+      document.getElementById('topology-canvas').style.cursor = 'crosshair';
+      updateStatus('Select first device to connect', 'connecting');
+      logTerminal('Connect mode: Click two devices to create a connection', 'info');
+    }
+
+    /**
+     * Exit connect mode
+     */
+    function exitConnectMode() {
+      networkState.connectMode = false;
+      networkState.connectSource = null;
+      document.getElementById('btn-connect').classList.remove('bg-blue-600');
+      document.getElementById('topology-canvas').style.cursor = 'default';
+      document.getElementById('temp-line').setAttribute('opacity', '0');
+      updateStatus('Ready', 'ready');
+    }
+
+    /**
+     * Start ping mode - select two devices
+     */
+    let pingSource = null;
+
+    function startPingMode() {
+      pingSource = null;
+      updateStatus('Select source device for ping', 'simulating');
+      logTerminal('Ping mode: Select source device, then destination', 'info');
+
+      const canvas = document.getElementById('topology-canvas');
+
+      const handleClick = (e) => {
+        const deviceEl = e.target.closest('.device');
+        if (!deviceEl) return;
+
+        const deviceId = deviceEl.dataset.deviceId;
+        const device = networkState.devices.find(d => d.id === deviceId);
+        if (!device) return;
+
+        // Highlight the selected device
+        deviceEl.style.boxShadow = '0 0 15px #22c55e';
+
+        if (!pingSource) {
+          pingSource = deviceId;
+          logTerminal(`Source: ${device.name} (${device.config.ip || 'no IP'})`, 'info');
+          updateStatus('Select destination device', 'simulating');
+        } else if (pingSource !== deviceId) {
+          // Remove highlight from source
+          const sourceEl = document.querySelector(`[data-device-id="${pingSource}"]`);
+          if (sourceEl) sourceEl.style.boxShadow = '';
+          deviceEl.style.boxShadow = '';
+
+          canvas.removeEventListener('click', handleClick, true);
+          runPingSimulation(pingSource, deviceId);
+          pingSource = null;
+          updateStatus('Ready', 'ready');
+        }
+      };
+
+      // Use capture phase (true) to receive events before device's stopPropagation
+      canvas.addEventListener('click', handleClick, true);
+    }
+
+    function startTraceMode() {
+      pingSource = null;
+      updateStatus('Select source device for traceroute', 'simulating');
+      logTerminal('Traceroute mode: Select source device, then destination', 'info');
+
+      const canvas = document.getElementById('topology-canvas');
+
+      const handleClick = (e) => {
+        const deviceEl = e.target.closest('.device');
+        if (!deviceEl) return;
+
+        const deviceId = deviceEl.dataset.deviceId;
+        const device = networkState.devices.find(d => d.id === deviceId);
+        if (!device) return;
+
+        deviceEl.style.boxShadow = '0 0 15px #3b82f6';
+
+        if (!pingSource) {
+          pingSource = deviceId;
+          logTerminal(`Source: ${device.name} (${device.config.ip || 'no IP'})`, 'info');
+          updateStatus('Select destination device', 'simulating');
+        } else if (pingSource !== deviceId) {
+          const sourceEl = document.querySelector(`[data-device-id="${pingSource}"]`);
+          if (sourceEl) sourceEl.style.boxShadow = '';
+          deviceEl.style.boxShadow = '';
+
+          canvas.removeEventListener('click', handleClick, true);
+          runTraceSimulation(pingSource, deviceId);
+          pingSource = null;
+          updateStatus('Ready', 'ready');
+        }
+      };
+
+      canvas.addEventListener('click', handleClick, true);
+    }
+
+    async function runTraceSimulation(sourceId, destId) {
+      const pathResult = findPath(sourceId, destId);
+      const source = networkState.devices.find(d => d.id === sourceId);
+      const dest = networkState.devices.find(d => d.id === destId);
+
+      logTerminal(`TRACEROUTE to ${dest.config.ip || dest.name} from ${source.config.ip || source.name}`, 'info');
+
+      // Debug: Show physical path
+      const pathNames = pathResult.path.map(id => {
+        const d = networkState.devices.find(dev => dev.id === id);
+        return d ? `${d.name}(${d.type})` : id;
+      });
+      logTerminal(`Physical path: ${pathNames.join(' → ')}`, 'info');
+
+      // Debug: Show subnet info
+      logTerminal(`Source subnet: ${source.config.ip}/${source.config.cidr}`, 'info');
+      logTerminal(`Dest subnet: ${dest.config.ip}/${dest.config.cidr}`, 'info');
+      logTerminal(`Same subnet: ${pathResult.sameSubnet ? 'YES' : 'NO'}`, 'info');
+
+      logTerminal('Tracing route...', 'info');
+
+      // Show debug warnings
+      if (pathResult.warnings && pathResult.warnings.length > 0) {
+        pathResult.warnings.forEach(warn => logTerminal(warn, 'warning'));
+      }
+
+      if (!pathResult.success) {
+        pathResult.errors.forEach(err => logTerminal(`Error: ${err}`, 'error'));
+        logTerminal('--- Traceroute failed ---', 'error');
+        return;
+      }
+
+      // Show each hop with timing
+      for (let i = 0; i < pathResult.path.length; i++) {
+        const hop = pathResult.path[i];
+        const device = networkState.devices.find(d => d.id === hop);
+        const latency = Math.floor(Math.random() * 5 + 1);
+
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        if (i === 0) {
+          logTerminal(`  ${i + 1}  ${device.config.ip || '*'} (${device.name}) - Source`, 'info');
+        } else if (i === pathResult.path.length - 1) {
+          logTerminal(`  ${i + 1}  ${device.config.ip || '*'} (${device.name}) ${latency}ms - Destination`, 'success');
+        } else {
+          const hopType = device.type === 'router' ? 'Router' : device.type === 'switch' ? 'Switch' : 'Device';
+          logTerminal(`  ${i + 1}  ${device.config.ip || '*'} (${device.name}) ${latency}ms - ${hopType}`, 'info');
+        }
+
+        // Highlight current hop
+        const el = document.querySelector(`[data-device-id="${hop}"]`);
+        if (el) {
+          el.style.boxShadow = '0 0 20px #f59e0b';
+          setTimeout(() => { el.style.boxShadow = ''; }, 500);
+        }
+      }
+
+      logTerminal(`--- Trace complete: ${pathResult.path.length} hops ---`, 'success');
+    }
+
+    // ============================================
+    // EVENT HANDLERS
+    // ============================================
+
+    /**
+     * Handle drag start from device palette
+     */
+    function setupDragFromPalette() {
+      document.querySelectorAll('.device-template').forEach(template => {
+        template.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('deviceType', template.dataset.type);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+      });
+
+      const canvas = document.getElementById('topology-canvas');
+
+      canvas.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+
+      canvas.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const deviceType = e.dataTransfer.getData('deviceType');
+        if (!deviceType) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scrollLeft = canvas.scrollLeft || 0;
+        const scrollTop = canvas.scrollTop || 0;
+        const x = e.clientX - rect.left + scrollLeft - 40;
+        const y = e.clientY - rect.top + scrollTop - 30;
+
+        const device = createDevice(deviceType, Math.max(0, x), Math.max(0, y));
+        addDevice(device);
+      });
+    }
+
+    /**
+     * Setup canvas panning (click and drag to scroll)
+     */
+    function setupCanvasPanning() {
+      const canvas = document.getElementById('topology-canvas');
+      let isPanning = false;
+      let startX, startY, scrollLeft, scrollTop;
+
+      canvas.addEventListener('mousedown', (e) => {
+        // Only pan when clicking on canvas background, not on devices
+        if (e.target.closest('.device') || e.button !== 0) return;
+
+        isPanning = true;
+        canvas.style.cursor = 'grabbing';
+        startX = e.pageX - canvas.offsetLeft;
+        startY = e.pageY - canvas.offsetTop;
+        scrollLeft = canvas.scrollLeft;
+        scrollTop = canvas.scrollTop;
+        e.preventDefault();
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+
+        const x = e.pageX - canvas.offsetLeft;
+        const y = e.pageY - canvas.offsetTop;
+        const walkX = (x - startX) * 1.5; // Speed multiplier
+        const walkY = (y - startY) * 1.5;
+
+        canvas.scrollLeft = scrollLeft - walkX;
+        canvas.scrollTop = scrollTop - walkY;
+      });
+
+      canvas.addEventListener('mouseup', () => {
+        isPanning = false;
+        canvas.style.cursor = '';
+      });
+
+      canvas.addEventListener('mouseleave', () => {
+        isPanning = false;
+        canvas.style.cursor = '';
+      });
+
+      // Set default cursor to grab
+      canvas.style.cursor = 'grab';
+    }
+
+    /**
+     * Apply device configuration from panel
+     */
+    function applyConfiguration() {
+      if (!networkState.selectedDevice) return;
+
+      const device = networkState.devices.find(d => d.id === networkState.selectedDevice);
+      if (!device) return;
+
+      const deviceType = DEVICE_TYPES[device.type];
+
+      // Update name
+      const newName = document.getElementById('device-name').value.trim();
+      if (newName) device.name = newName;
+
+      // Update network config if applicable
+      if (deviceType.hasIP) {
+        const ipInput = document.getElementById('ip-address').value.trim();
+        const maskInput = document.getElementById('subnet-mask').value.trim();
+        const gatewayInput = document.getElementById('default-gateway').value.trim();
+        const dnsInput = document.getElementById('dns-server').value.trim();
+
+        // Validate IP
+        if (ipInput && !isValidIP(ipInput)) {
+          logTerminal('Invalid IP address format', 'error');
+          document.getElementById('ip-address').classList.add('invalid');
+          return;
+        }
+        document.getElementById('ip-address').classList.remove('invalid');
+
+        // Parse CIDR
+        const cidr = parseCIDR(maskInput);
+        if (maskInput && cidr === null) {
+          logTerminal('Invalid subnet mask format', 'error');
+          document.getElementById('subnet-mask').classList.add('invalid');
+          return;
+        }
+        document.getElementById('subnet-mask').classList.remove('invalid');
+
+        // Validate gateway
+        if (gatewayInput && !isValidIP(gatewayInput)) {
+          logTerminal('Invalid gateway format', 'error');
+          document.getElementById('default-gateway').classList.add('invalid');
+          return;
+        }
+        document.getElementById('default-gateway').classList.remove('invalid');
+
+        device.config.ip = ipInput;
+        device.config.cidr = cidr || 24;
+        device.config.gateway = gatewayInput;
+        device.config.dns = dnsInput;
+      }
+
+      // Refresh device visual
+      refreshDeviceRender(device);
+      updateConfigPanel();
+      updateStats();
+
+      logTerminal(`Configuration applied to ${device.name}`, 'success');
+    }
+
+    /**
+     * Add interface to router
+     * @param {string} deviceId - Router device ID
+     */
+    function addInterface(deviceId) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device || device.type !== 'router') return;
+
+      const index = device.interfaces.length;
+      device.interfaces.push({
+        id: `${deviceId}_int${index}`,
+        ip: '',
+        cidr: 24,
+        name: `eth${index}`,
+        vlan: null
+      });
+
+      renderRouterInterfaces(device);
+      logTerminal(`Added interface eth${index} to ${device.name}`, 'info');
+    }
+
+    /**
+     * Remove interface from router
+     */
+    window.removeInterface = function(deviceId, index) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device || index === 0) return;
+
+      device.interfaces.splice(index, 1);
+      renderRouterInterfaces(device);
+      logTerminal(`Removed interface from ${device.name}`, 'warning');
+    };
+
+    /**
+     * Update interface configuration
+     */
+    window.updateInterface = function(deviceId, index, field, value) {
+      const device = networkState.devices.find(d => d.id === deviceId);
+      if (!device) return;
+
+      if (field === 'ip') {
+        device.interfaces[index].ip = value;
+      } else if (field === 'cidr') {
+        const cidr = parseCIDR(value);
+        if (cidr !== null) {
+          device.interfaces[index].cidr = cidr;
+        }
+      } else if (field === 'vlan') {
+        const vlanId = parseInt(value);
+        if (value === '' || value === '0') {
+          device.interfaces[index].vlan = null;
+        } else if (!isNaN(vlanId) && vlanId >= 1 && vlanId <= 4094) {
+          device.interfaces[index].vlan = vlanId;
+        }
+        renderRouterInterfaces(device);
+      }
+    };
+
+    // ============================================
+    // SUBNET CALCULATOR
+    // ============================================
+
+    function openSubnetCalculator() {
+      document.getElementById('subnet-modal').classList.remove('hidden');
+    }
+
+    function calculateSubnet() {
+      const ip = document.getElementById('calc-ip').value.trim();
+      const cidrInput = document.getElementById('calc-cidr').value.trim();
+
+      const octets = parseIP(ip);
+      const cidr = parseCIDR(cidrInput);
+
+      if (!octets) {
+        logTerminal('Invalid IP address', 'error');
+        return;
+      }
+
+      if (cidr === null) {
+        logTerminal('Invalid CIDR/subnet mask', 'error');
+        return;
+      }
+
+      const network = getNetworkAddress(octets, cidr);
+      const broadcast = getBroadcastAddress(octets, cidr);
+      const hostBits = 32 - cidr;
+      const totalHosts = Math.pow(2, hostBits) - 2;
+
+      const networkOctets = parseIP(network);
+      const broadcastOctets = parseIP(broadcast);
+
+      const firstHost = intToIP(ipToInt(networkOctets) + 1);
+      const lastHost = intToIP(ipToInt(broadcastOctets) - 1);
+
+      // Display results
+      document.getElementById('calc-results').classList.remove('hidden');
+      document.getElementById('calc-network').textContent = network;
+      document.getElementById('calc-broadcast').textContent = broadcast;
+      document.getElementById('calc-first').textContent = firstHost;
+      document.getElementById('calc-last').textContent = lastHost;
+      document.getElementById('calc-hosts').textContent = totalHosts > 0 ? totalHosts.toLocaleString() : '0';
+      document.getElementById('calc-mask').textContent = cidrToMask(cidr);
+
+      // Binary visualization
+      document.getElementById('calc-binary-ip').textContent = ipToBinary(ip);
+      document.getElementById('calc-binary-mask').textContent = ipToBinary(cidrToMask(cidr));
+      document.getElementById('calc-binary-network').textContent = ipToBinary(network);
+
+      // Network/host bits visualization
+      const networkBitsEl = document.getElementById('calc-network-bits');
+      const hostBitsEl = document.getElementById('calc-host-bits');
+      networkBitsEl.style.width = `${(cidr / 32) * 100}%`;
+      hostBitsEl.style.width = `${((32 - cidr) / 32) * 100}%`;
+      document.getElementById('calc-network-count').textContent = `${cidr} network bits`;
+      document.getElementById('calc-host-count').textContent = `${32 - cidr} host bits`;
+
+      // Show all subnets for this CIDR
+      displayAllSubnets(network, cidr);
+    }
+
+    function displayAllSubnets(network, cidr) {
+      const container = document.getElementById('calc-subnets');
+      container.innerHTML = '';
+
+      if (cidr < 24) {
+        container.innerHTML = '<p class="text-slate-400 text-xs">Use /24 or smaller for subnet list</p>';
+        return;
+      }
+
+      // Always use /24 as parent
+      const networkOctets = parseIP(network);
+      const parentNetwork = getNetworkAddress(networkOctets, 24);
+      const parentOctets = parseIP(parentNetwork);
+      const parentInt = ipToInt(parentOctets);
+
+      const subnetCount = Math.pow(2, cidr - 24);
+      const subnetSize = Math.pow(2, 32 - cidr);
+
+      let html = '<div class="space-y-1">';
+
+      for (let i = 0; i < subnetCount; i++) {
+        const subnetStart = parentInt + (i * subnetSize);
+        const subnetNetwork = intToIP(subnetStart);
+        const firstUsable = intToIP(subnetStart + 1);
+        const lastUsable = intToIP(subnetStart + subnetSize - 2);
+
+        html += `<div class="p-2 bg-slate-800 rounded mono text-slate-300">${subnetNetwork}/${cidr} <span class="text-slate-500">→</span> ${firstUsable} - ${lastUsable}</div>`;
+      }
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    // ============================================
+    // NETWORK PRESETS
+    // ============================================
+
+    const networkPresets = {
+      vlan: {
+        name: 'Tutorial',
+        description: 'Multi-VLAN office with Sales, HR, IT, Guest and Services',
+        devices: [
+          // Router with subinterfaces for each VLAN
+          { id: 'r1', type: 'router', name: 'R1', x: 404, y: 86, interfaces: [
+            { ip: '192.168.1.1', subnet: '255.255.255.192', name: 'G0/0.10', vlan: 10 },
+            { ip: '192.168.1.65', subnet: '255.255.255.224', name: 'G0/0.20', vlan: 20 },
+            { ip: '192.168.1.97', subnet: '255.255.255.240', name: 'G0/1.30', vlan: 30 },
+            { ip: '192.168.1.113', subnet: '255.255.255.240', name: 'G0/1.40', vlan: 40 },
+            { ip: '192.168.1.129', subnet: '255.255.255.240', name: 'G0/0.50', vlan: 50 }
+          ]},
+          // Switches
+          { id: 'sw1', type: 'switch', name: 'SW1', x: 196, y: 196, vlans: [1, 10, 20, 50] },
+          { id: 'sw2', type: 'switch', name: 'SW2', x: 594, y: 193, vlans: [1, 30, 40, 50] },
+          // Sales PCs on SW1 (VLAN 10)
+          { id: 'sales1', type: 'pc', name: 'Sales-PC1', x: 116, y: 31, ip: '192.168.1.10', subnet: '255.255.255.192', gateway: '192.168.1.1' },
+          { id: 'sales2', type: 'pc', name: 'Sales-PC2', x: 19, y: 196, ip: '192.168.1.11', subnet: '255.255.255.192', gateway: '192.168.1.1' },
+          // HR PCs on SW1 (VLAN 20)
+          { id: 'hr1', type: 'pc', name: 'HR-PC1', x: 87, y: 306, ip: '192.168.1.70', subnet: '255.255.255.224', gateway: '192.168.1.65' },
+          { id: 'hr2', type: 'pc', name: 'HR-PC2', x: 197, y: 396, ip: '192.168.1.71', subnet: '255.255.255.224', gateway: '192.168.1.65' },
+          // Printer on SW1 (VLAN 50)
+          { id: 'printer', type: 'printer', name: 'Printer', x: 301, y: 306, ip: '192.168.1.130', subnet: '255.255.255.240', gateway: '192.168.1.129' },
+          // IT PCs on SW2 (VLAN 30)
+          { id: 'it1', type: 'laptop', name: 'IT-PC1', x: 596, y: 395, ip: '192.168.1.100', subnet: '255.255.255.240', gateway: '192.168.1.97' },
+          { id: 'it2', type: 'laptop', name: 'IT-PC2', x: 706, y: 303, ip: '192.168.1.101', subnet: '255.255.255.240', gateway: '192.168.1.97' },
+          // Server on SW2 (VLAN 50)
+          { id: 'server', type: 'server', name: 'Server', x: 688, y: 31, ip: '192.168.1.131', subnet: '255.255.255.240', gateway: '192.168.1.129' },
+          // Guest WiFi AP on SW2 (VLAN 40)
+          { id: 'guest1', type: 'ap', name: 'Guest-WiFi', x: 792, y: 190, ip: '192.168.1.120', subnet: '255.255.255.240', gateway: '192.168.1.113' }
+        ],
+        connections: [
+          // Router G0/0 to SW1 (trunk)
+          { from: 'r1', to: 'sw1' },
+          // Router G0/1 to SW2 (trunk)
+          { from: 'r1', to: 'sw2' },
+          // SW1: Sales PCs (VLAN 10)
+          { from: 'sw1', to: 'sales1', fromVlan: 10 },
+          { from: 'sw1', to: 'sales2', fromVlan: 10 },
+          // SW1: HR PCs (VLAN 20)
+          { from: 'sw1', to: 'hr1', fromVlan: 20 },
+          { from: 'sw1', to: 'hr2', fromVlan: 20 },
+          // SW1: Printer (VLAN 50)
+          { from: 'sw1', to: 'printer', fromVlan: 50 },
+          // SW2: IT PCs (VLAN 30)
+          { from: 'sw2', to: 'it1', fromVlan: 30 },
+          { from: 'sw2', to: 'it2', fromVlan: 30 },
+          // SW2: Server (VLAN 50)
+          { from: 'sw2', to: 'server', fromVlan: 50 },
+          // SW2: Guest WiFi (VLAN 40)
+          { from: 'sw2', to: 'guest1', fromVlan: 40 }
+        ],
+        firewallRules: [
+          // Sales: Deny Services and HR
+          { source: '192.168.1.0/26', dest: '192.168.1.128/28', port: '*', action: 'deny' },
+          { source: '192.168.1.0/26', dest: '192.168.1.64/27', port: '*', action: 'deny' },
+          // HR: Deny Sales
+          { source: '192.168.1.64/27', dest: '192.168.1.0/26', port: '*', action: 'deny' },
+          // Guest: Deny all internal
+          { source: '192.168.1.112/28', dest: '192.168.1.0/24', port: '*', action: 'deny' }
+        ]
+      }
+    };
+
+    function loadPreset(presetId) {
+      const preset = networkPresets[presetId];
+      if (!preset) return;
+
+      // Clear current network
+      networkState.devices = [];
+      networkState.connections = [];
+      networkState.firewallRules = preset.firewallRules || [];
+      networkState.selectedDevice = null;
+      networkState.deviceCounter = 0;
+      const topoInner = document.getElementById('topology-inner');
+      if (topoInner) {
+        topoInner.querySelectorAll('.device').forEach(d => d.remove());
+      }
+      document.getElementById('connections-svg').innerHTML = '';
+
+      // Load devices with correct structure
+      preset.devices.forEach(d => {
+        const deviceType = DEVICE_TYPES[d.type];
+        const device = {
+          id: d.id,
+          type: d.type,
+          name: d.name,
+          x: d.x,
+          y: d.y,
+          config: {}
+        };
+
+        // Add network config
+        if (deviceType && deviceType.hasIP) {
+          device.config.ip = d.ip || '';
+          device.config.cidr = d.subnet ? maskToCidr(d.subnet) : 24;
+          device.config.gateway = d.gateway || '';
+          device.config.dns = d.dns || '';
+        }
+
+        // Add interfaces for routers
+        if (d.interfaces && d.interfaces.length > 0) {
+          device.interfaces = d.interfaces.map((iface, idx) => ({
+            id: `${d.id}_int${idx}`,
+            ip: iface.ip || '',
+            cidr: iface.subnet ? maskToCidr(iface.subnet) : 24,
+            name: iface.name || `eth${idx}`,
+            vlan: iface.vlan || null
+          }));
+        } else if (deviceType && deviceType.hasInterfaces) {
+          device.interfaces = [{ id: `${d.id}_int0`, ip: '', cidr: 24, name: 'eth0', vlan: null }];
+        }
+
+        // Add VLANs for switches
+        if (d.type === 'switch') {
+          device.vlans = d.vlans || [1];
+          device.ports = {};
+        }
+
+        networkState.devices.push(device);
+        renderDevice(device);
+      });
+
+      // Load connections with IDs and initialize switch ports
+      let connCounter = 0;
+      preset.connections.forEach(c => {
+        const connId = `conn_${++connCounter}`;
+        networkState.connections.push({
+          id: connId,
+          from: c.from,
+          to: c.to
+        });
+
+        // Initialize switch ports with VLAN config
+        const fromDevice = networkState.devices.find(d => d.id === c.from);
+        const toDevice = networkState.devices.find(d => d.id === c.to);
+
+        if (fromDevice?.type === 'switch') {
+          const isTrunk = toDevice?.type === 'router' || c.fromMode === 'trunk';
+          fromDevice.ports[connId] = {
+            mode: c.fromMode || (isTrunk ? 'trunk' : 'access'),
+            vlan: c.fromVlan || 1,
+            allowedVlans: isTrunk ? [...(fromDevice.vlans || [1])] : [c.fromVlan || 1]
+          };
+        }
+        if (toDevice?.type === 'switch') {
+          const isTrunk = fromDevice?.type === 'router' || c.toMode === 'trunk';
+          toDevice.ports[connId] = {
+            mode: c.toMode || (isTrunk ? 'trunk' : 'access'),
+            vlan: c.toVlan || 1,
+            allowedVlans: isTrunk ? [...(toDevice.vlans || [1])] : [c.toVlan || 1]
+          };
+        }
+      });
+
+      renderConnections();
+      updateStats();
+      renderFirewallRules();
+
+      // Refresh device labels now that connections/ports exist
+      networkState.devices.forEach(d => refreshDeviceRender(d));
+
+      logTerminal(`Loaded preset: ${preset.name}`, 'info');
+      document.getElementById('presets-modal').classList.add('hidden');
+    }
+
+    // Helper to convert subnet mask to CIDR
+    function maskToCidr(mask) {
+      if (!mask) return 24;
+      const parts = mask.split('.').map(Number);
+      let cidr = 0;
+      for (const part of parts) {
+        let n = part;
+        while (n > 0) { cidr += n & 1; n >>= 1; }
+      }
+      return cidr;
+    }
+
+    // ============================================
+    // PRACTICE MODE
+    // ============================================
+
+    let practiceState = {
+      correct: 0,
+      incorrect: 0,
+      streak: 0,
+      currentAnswer: null,
+      currentExplanation: ''
+    };
+
+    const practiceQuestionTypes = [
+      'find_subnet',
+      'find_broadcast',
+      'find_first_host',
+      'find_last_host',
+      'find_hosts_count',
+      'split_network',
+      'same_subnet',
+      'find_mask'
+    ];
+
+    function generatePracticeQuestion() {
+      const type = practiceQuestionTypes[Math.floor(Math.random() * practiceQuestionTypes.length)];
+      const randomOctet = () => Math.floor(Math.random() * 256);
+      const randomCidr = () => Math.floor(Math.random() * 23) + 8;
+
+      let questionText = '';
+      let questionType = '';
+      let ip, cidr, mask, net, bcast;
+
+      switch(type) {
+        case 'find_subnet':
+          ip = `${10 + Math.floor(Math.random()*180)}.${randomOctet()}.${randomOctet()}.${randomOctet()}`;
+          cidr = randomCidr();
+          mask = cidrToMask(cidr);
+          net = calculateNetwork(ip, mask);
+          practiceState.currentAnswer = net;
+          practiceState.currentExplanation = `Network = IP AND Mask. For ${ip}/${cidr}, the network is ${net}`;
+          questionType = 'Find the Network Address';
+          questionText = `What is the network address for <span class="mono text-purple-400">${ip}/${cidr}</span>?`;
+          break;
+
+        case 'find_broadcast':
+          ip = `${10 + Math.floor(Math.random()*180)}.${randomOctet()}.${randomOctet()}.${randomOctet()}`;
+          cidr = randomCidr();
+          mask = cidrToMask(cidr);
+          net = calculateNetwork(ip, mask);
+          bcast = calculateBroadcast(net, cidr);
+          practiceState.currentAnswer = bcast;
+          practiceState.currentExplanation = `Broadcast = Network OR (NOT Mask). For ${ip}/${cidr}, broadcast is ${bcast}`;
+          questionType = 'Find the Broadcast Address';
+          questionText = `What is the broadcast address for <span class="mono text-purple-400">${ip}/${cidr}</span>?`;
+          break;
+
+        case 'find_first_host':
+          ip = `${10 + Math.floor(Math.random()*180)}.${randomOctet()}.${randomOctet()}.${randomOctet()}`;
+          cidr = randomCidr();
+          mask = cidrToMask(cidr);
+          net = calculateNetwork(ip, mask);
+          const firstHost = incrementIP(net);
+          practiceState.currentAnswer = firstHost;
+          practiceState.currentExplanation = `First usable host = Network + 1. Network is ${net}, so first host is ${firstHost}`;
+          questionType = 'Find the First Usable Host';
+          questionText = `What is the first usable host IP for <span class="mono text-purple-400">${ip}/${cidr}</span>?`;
+          break;
+
+        case 'find_last_host':
+          ip = `${10 + Math.floor(Math.random()*180)}.${randomOctet()}.${randomOctet()}.${randomOctet()}`;
+          cidr = randomCidr();
+          mask = cidrToMask(cidr);
+          net = calculateNetwork(ip, mask);
+          bcast = calculateBroadcast(net, cidr);
+          const lastHost = decrementIP(bcast);
+          practiceState.currentAnswer = lastHost;
+          practiceState.currentExplanation = `Last usable host = Broadcast - 1. Broadcast is ${bcast}, so last host is ${lastHost}`;
+          questionType = 'Find the Last Usable Host';
+          questionText = `What is the last usable host IP for <span class="mono text-purple-400">${ip}/${cidr}</span>?`;
+          break;
+
+        case 'find_hosts_count':
+          cidr = randomCidr();
+          const hostCount = Math.pow(2, 32 - cidr) - 2;
+          practiceState.currentAnswer = String(hostCount);
+          practiceState.currentExplanation = `Usable hosts = 2^(32-CIDR) - 2 = 2^${32-cidr} - 2 = ${hostCount}`;
+          questionType = 'Calculate Usable Hosts';
+          questionText = `How many usable host addresses are in a <span class="mono text-purple-400">/${cidr}</span> network?`;
+          break;
+
+        case 'split_network':
+          const baseNet = `192.168.${Math.floor(Math.random()*256)}.0`;
+          const numSubnets = Math.pow(2, Math.floor(Math.random()*4)+1);
+          const newCidr = 24 + Math.log2(numSubnets);
+          practiceState.currentAnswer = `/${newCidr}`;
+          practiceState.currentExplanation = `Need ${Math.log2(numSubnets)} extra bits for ${numSubnets} subnets. 24 + ${Math.log2(numSubnets)} = /${newCidr}`;
+          questionType = 'Split Network';
+          questionText = `To split <span class="mono text-purple-400">${baseNet}/24</span> into <strong>${numSubnets} equal subnets</strong>, what CIDR should each have?`;
+          break;
+
+        case 'same_subnet':
+          const baseIp = `192.168.${Math.floor(Math.random()*256)}`;
+          cidr = Math.floor(Math.random()*8) + 24;
+          const subnetSize = Math.pow(2, 32 - cidr);
+          const ip1 = `${baseIp}.${Math.floor(Math.random()*subnetSize)+1}`;
+          const sameNet = Math.random() > 0.5;
+          let ip2;
+          if (sameNet) {
+            ip2 = `${baseIp}.${Math.floor(Math.random()*subnetSize)+1}`;
+          } else {
+            ip2 = `${baseIp}.${subnetSize + Math.floor(Math.random()*subnetSize)+1}`;
+          }
+          mask = cidrToMask(cidr);
+          const net1 = calculateNetwork(ip1, mask);
+          const net2 = calculateNetwork(ip2, mask);
+          const actualSame = net1 === net2;
+          practiceState.currentAnswer = actualSame ? 'yes' : 'no';
+          practiceState.currentExplanation = `${ip1} -> Network: ${net1}, ${ip2} -> Network: ${net2}. ${actualSame ? 'Same network!' : 'Different networks!'}`;
+          questionType = 'Same Subnet Check';
+          questionText = `Are <span class="mono text-purple-400">${ip1}</span> and <span class="mono text-purple-400">${ip2}</span> on the same subnet with mask <span class="mono text-purple-400">/${cidr}</span>? (yes/no)`;
+          break;
+
+        case 'find_mask':
+          cidr = randomCidr();
+          practiceState.currentAnswer = cidrToMask(cidr);
+          practiceState.currentExplanation = `/${cidr} means ${cidr} bits set to 1. Mask = ${practiceState.currentAnswer}`;
+          questionType = 'CIDR to Subnet Mask';
+          questionText = `What is the subnet mask for <span class="mono text-purple-400">/${cidr}</span>?`;
+          break;
+      }
+
+      document.getElementById('practice-type').textContent = questionType;
+      document.getElementById('practice-text').innerHTML = questionText;
+      document.getElementById('practice-answer').value = '';
+      document.getElementById('practice-answer').focus();
+      document.getElementById('practice-feedback').classList.add('hidden');
+    }
+
+    function checkPracticeAnswer() {
+      const input = document.getElementById('practice-answer').value.trim().toLowerCase();
+      let correctAnswer = practiceState.currentAnswer.toLowerCase();
+
+      if (correctAnswer.startsWith('/') && !input.startsWith('/')) {
+        correctAnswer = correctAnswer.substring(1);
+      }
+
+      const isCorrect = input === correctAnswer || input === practiceState.currentAnswer.toLowerCase();
+      const feedback = document.getElementById('practice-feedback');
+      const title = document.getElementById('practice-feedback-title');
+      const text = document.getElementById('practice-feedback-text');
+
+      if (isCorrect) {
+        practiceState.correct++;
+        practiceState.streak++;
+        feedback.className = 'mt-4 p-4 rounded-xl bg-green-900/50 border border-green-700';
+        title.className = 'font-semibold mb-2 text-green-400';
+        title.textContent = '✓ Correct!';
+      } else {
+        practiceState.incorrect++;
+        practiceState.streak = 0;
+        feedback.className = 'mt-4 p-4 rounded-xl bg-red-900/50 border border-red-700';
+        title.className = 'font-semibold mb-2 text-red-400';
+        title.textContent = '✗ Incorrect';
+      }
+
+      text.innerHTML = `Your answer: <span class="mono">${input || '(empty)'}</span><br>
+        Correct answer: <span class="mono text-white">${practiceState.currentAnswer}</span><br><br>
+        ${practiceState.currentExplanation}`;
+
+      feedback.classList.remove('hidden');
+      updatePracticeScore();
+    }
+
+    function showPracticeHint() {
+      const feedback = document.getElementById('practice-feedback');
+      const title = document.getElementById('practice-feedback-title');
+      const text = document.getElementById('practice-feedback-text');
+
+      feedback.className = 'mt-4 p-4 rounded-xl bg-blue-900/50 border border-blue-700';
+      title.className = 'font-semibold mb-2 text-blue-400';
+      title.textContent = '💡 Hint';
+      text.textContent = practiceState.currentExplanation.split('.')[0] + '...';
+      feedback.classList.remove('hidden');
+    }
+
+    function updatePracticeScore() {
+      document.getElementById('practice-correct').textContent = practiceState.correct;
+      document.getElementById('practice-incorrect').textContent = practiceState.incorrect;
+      document.getElementById('practice-streak').textContent = practiceState.streak;
+    }
+
+    // Helper functions for practice mode
+    function cidrToMask(cidr) {
+      const mask = cidr === 0 ? 0 : (0xFFFFFFFF << (32 - cidr)) >>> 0;
+      return [(mask >>> 24) & 255, (mask >>> 16) & 255, (mask >>> 8) & 255, mask & 255].join('.');
+    }
+
+    function calculateNetwork(ip, mask) {
+      const ipParts = ip.split('.').map(Number);
+      const maskParts = mask.split('.').map(Number);
+      return ipParts.map((p, i) => p & maskParts[i]).join('.');
+    }
+
+    function calculateBroadcast(network, cidr) {
+      const netParts = network.split('.').map(Number);
+      const hostBits = 32 - cidr;
+      const netInt = (netParts[0] << 24) | (netParts[1] << 16) | (netParts[2] << 8) | netParts[3];
+      const bcastInt = (netInt | ((1 << hostBits) - 1)) >>> 0;
+      return [(bcastInt >>> 24) & 255, (bcastInt >>> 16) & 255, (bcastInt >>> 8) & 255, bcastInt & 255].join('.');
+    }
+
+    function incrementIP(ip) {
+      const parts = ip.split('.').map(Number);
+      let carry = 1;
+      for (let i = 3; i >= 0 && carry; i--) {
+        parts[i] += carry;
+        if (parts[i] > 255) { parts[i] = 0; carry = 1; } else { carry = 0; }
+      }
+      return parts.join('.');
+    }
+
+    function decrementIP(ip) {
+      const parts = ip.split('.').map(Number);
+      let borrow = 1;
+      for (let i = 3; i >= 0 && borrow; i--) {
+        parts[i] -= borrow;
+        if (parts[i] < 0) { parts[i] = 255; borrow = 1; } else { borrow = 0; }
+      }
+      return parts.join('.');
+    }
+
+    // ============================================
+    // FIREWALL RULES
+    // ============================================
+
+    function renderFirewallRules() {
+      const container = document.getElementById('firewall-rules');
+
+      if (networkState.firewallRules.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-6 text-slate-400 text-sm">
+            <svg class="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+            </svg>
+            No deny rules defined
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = networkState.firewallRules.map((rule, index) => `
+        <div class="p-2 bg-slate-700 rounded flex items-center justify-between cursor-pointer hover:bg-slate-600 transition" onclick="editFirewallRule(${index})">
+          <div class="flex-1 mono text-xs">
+            <span class="text-red-400">DENY</span>
+            <span class="text-slate-400 mx-1">:</span>
+            <span class="text-white">${rule.source}</span>
+            <span class="text-slate-400 mx-1">→</span>
+            <span class="text-white">${rule.dest}</span>
+          </div>
+          <button class="text-red-400 hover:text-red-300 px-2" onclick="event.stopPropagation(); deleteFirewallRule(${index})">×</button>
+        </div>
+      `).join('');
+    }
+
+    function openRuleEditor(index) {
+      const editor = document.getElementById('rule-editor');
+      editor.dataset.editIndex = index;
+      editor.classList.remove('hidden');
+
+      if (index >= 0) {
+        const rule = networkState.firewallRules[index];
+        document.getElementById('rule-editor-title').textContent = 'Edit Deny Rule';
+        document.getElementById('rule-source').value = rule.source;
+        document.getElementById('rule-dest').value = rule.dest;
+      } else {
+        document.getElementById('rule-editor-title').textContent = 'New Deny Rule';
+        document.getElementById('rule-source').value = '';
+        document.getElementById('rule-dest').value = '';
+      }
+    }
+
+    function saveFirewallRule() {
+      const source = document.getElementById('rule-source').value.trim();
+      const dest = document.getElementById('rule-dest').value.trim();
+      const editor = document.getElementById('rule-editor');
+      const editIndex = parseInt(editor.dataset.editIndex);
+
+      if (!source || !dest) {
+        logTerminal('Source and destination subnets are required', 'error');
+        return;
+      }
+
+      const rule = { source, dest, port: '*', action: 'deny' };
+
+      if (editIndex >= 0 && editIndex < networkState.firewallRules.length) {
+        networkState.firewallRules[editIndex] = rule;
+        logTerminal(`Deny rule updated: ${source} → ${dest}`, 'success');
+      } else {
+        networkState.firewallRules.push(rule);
+        logTerminal(`Deny rule added: ${source} → ${dest}`, 'success');
+      }
+
+      renderFirewallRules();
+      editor.classList.add('hidden');
+    }
+
+    window.editFirewallRule = function(index) {
+      openRuleEditor(index);
+    };
+
+    window.deleteFirewallRule = function(index) {
+      networkState.firewallRules.splice(index, 1);
+      renderFirewallRules();
+      logTerminal('Deny rule deleted', 'warning');
+    };
+
+    // ============================================
+    // SAVE/LOAD FUNCTIONALITY
+    // ============================================
+
+    async function saveTopology() {
+      const name = document.getElementById('save-name').value.trim() || 'network';
+
+      const topologyData = {
+        name: name,
+        devices: networkState.devices,
+        connections: networkState.connections,
+        firewallRules: networkState.firewallRules,
+        savedAt: new Date().toISOString()
+      };
+
+      // Download as JSON file
+      const blob = new Blob([JSON.stringify(topologyData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${name.replace(/\s+/g, '_')}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      logTerminal(`Topology downloaded: ${name}.json`, 'success');
+      document.getElementById('save-modal').classList.add('hidden');
+      document.getElementById('save-name').value = '';
+    }
+
+    function handleFileLoad(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+
+          // Clear current state
+          networkState.devices = [];
+          networkState.connections = [];
+          networkState.firewallRules = [];
+          networkState.selectedDevice = null;
+
+          const topoInner = document.getElementById('topology-inner');
+          if (topoInner) {
+            topoInner.querySelectorAll('.device').forEach(d => d.remove());
+          }
+          document.getElementById('connections-svg').innerHTML = '';
+
+          // Load devices
+          (data.devices || []).forEach(device => {
+            networkState.devices.push(device);
+            renderDevice(device);
+          });
+
+          // Load connections
+          networkState.connections = data.connections || [];
+          renderConnections();
+
+          // Load firewall rules
+          networkState.firewallRules = data.firewallRules || [];
+          renderFirewallRules();
+
+          updateStats();
+          updateConfigPanel();
+
+          // Refresh device labels now that connections exist
+          networkState.devices.forEach(d => refreshDeviceRender(d));
+
+          document.getElementById('load-modal').classList.add('hidden');
+          logTerminal(`Topology loaded: ${data.name || 'network'}`, 'success');
+        } catch (err) {
+          logTerminal('Failed to load topology: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+
+    // Data handler for SDK
+    const dataHandler = {
+      onDataChanged(data) {
+        savedTopologies = data;
+        renderSavedTopologies();
+      }
+    };
+
+    // Element SDK initialization
+    async function initElementSDK() {
+      if (!window.elementSdk) return;
+
+      await window.elementSdk.init({
+        defaultConfig,
+        onConfigChange: async (newConfig) => {
+          config = { ...defaultConfig, ...newConfig };
+          
+          // Update app title
+          document.getElementById('app-title').textContent = config.app_title || defaultConfig.app_title;
+        },
+        mapToCapabilities: (cfg) => ({
+          recolorables: [
+            {
+              get: () => cfg.primary_color || defaultConfig.primary_color,
+              set: (value) => {
+                cfg.primary_color = value;
+                window.elementSdk.setConfig({ primary_color: value });
+              }
+            },
+            {
+              get: () => cfg.secondary_color || defaultConfig.secondary_color,
+              set: (value) => {
+                cfg.secondary_color = value;
+                window.elementSdk.setConfig({ secondary_color: value });
+              }
+            },
+            {
+              get: () => cfg.accent_color || defaultConfig.accent_color,
+              set: (value) => {
+                cfg.accent_color = value;
+                window.elementSdk.setConfig({ accent_color: value });
+              }
+            },
+            {
+              get: () => cfg.text_color || defaultConfig.text_color,
+              set: (value) => {
+                cfg.text_color = value;
+                window.elementSdk.setConfig({ text_color: value });
+              }
+            },
+            {
+              get: () => cfg.surface_color || defaultConfig.surface_color,
+              set: (value) => {
+                cfg.surface_color = value;
+                window.elementSdk.setConfig({ surface_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: undefined,
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (cfg) => new Map([
+          ['app_title', cfg.app_title || defaultConfig.app_title]
+        ])
+      });
+    }
+
+    // Main initialization
+    async function init() {
+      // Initialize SDKs
+      if (window.dataSdk) {
+        await window.dataSdk.init(dataHandler);
+      }
+
+      await initElementSDK();
+
+      // Setup event listeners
+      setupDragFromPalette();
+      setupCanvasPanning();
+
+      // Canvas click to deselect
+      const canvas = document.getElementById('topology-canvas');
+      if (canvas) {
+        canvas.addEventListener('click', (e) => {
+          // Deselect when clicking on canvas background (not on a device)
+          if (e.target.id === 'topology-canvas' || e.target.id === 'topology-inner' || e.target.closest('#connections-svg')) {
+            if (networkState.connectMode) {
+              exitConnectMode();
+            } else {
+              networkState.selectedDevice = null;
+              document.querySelectorAll('.device.selected').forEach(el => el.classList.remove('selected'));
+              updateConfigPanel();
+            }
+          }
+        });
+      }
+
+      // Tab switching
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+          btn.classList.add('active');
+          const tabId = btn.dataset.tab;
+          const tabEl = document.getElementById(`tab-${tabId}`);
+          if (tabEl) tabEl.classList.remove('hidden');
+        });
+      });
+
+      // Helper to safely add event listener
+      const addListener = (id, event, callback) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener(event, callback);
+      };
+
+      // Toolbar buttons
+      addListener('btn-connect', 'click', () => {
+        if (networkState.connectMode) {
+          exitConnectMode();
+        } else {
+          enterConnectMode();
+        }
+      });
+
+      addListener('btn-delete', 'click', () => {
+        if (networkState.selectedDevice) {
+          removeDevice(networkState.selectedDevice);
+        }
+      });
+
+      addListener('btn-trace', 'click', startTraceMode);
+
+      // Header buttons
+      addListener('btn-new', 'click', () => {
+        networkState.devices = [];
+        networkState.connections = [];
+        networkState.firewallRules = [];
+        networkState.selectedDevice = null;
+        const topoInner = document.getElementById('topology-inner');
+      if (topoInner) {
+        topoInner.querySelectorAll('.device').forEach(d => d.remove());
+      }
+        document.getElementById('connections-svg').innerHTML = '';
+        updateStats();
+        updateConfigPanel();
+        logTerminal('New topology created', 'info');
+      });
+
+      addListener('btn-save', 'click', () => {
+        document.getElementById('save-modal').classList.remove('hidden');
+      });
+
+      addListener('btn-load', 'click', () => {
+        document.getElementById('load-modal').classList.remove('hidden');
+      });
+
+      // File input for loading topology
+      const fileInput = document.getElementById('load-file-input');
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            handleFileLoad(file);
+            e.target.value = ''; // Reset for next load
+          }
+        });
+      }
+
+      addListener('btn-help', 'click', () => {
+        document.getElementById('help-modal').classList.remove('hidden');
+      });
+
+      // Presets button
+      addListener('btn-presets', 'click', () => {
+        document.getElementById('presets-modal').classList.remove('hidden');
+      });
+      addListener('close-presets-modal', 'click', () => {
+        document.getElementById('presets-modal').classList.add('hidden');
+      });
+
+      // Setup preset card clicks
+      document.querySelectorAll('.preset-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const presetId = card.dataset.preset;
+          loadPreset(presetId);
+        });
+      });
+
+      // Practice button
+      addListener('btn-practice', 'click', () => {
+        document.getElementById('practice-modal').classList.remove('hidden');
+      });
+      addListener('close-practice-modal', 'click', () => {
+        document.getElementById('practice-modal').classList.add('hidden');
+      });
+      addListener('practice-new', 'click', generatePracticeQuestion);
+      addListener('practice-submit', 'click', checkPracticeAnswer);
+      addListener('practice-hint', 'click', showPracticeHint);
+
+      // Allow Enter key to submit practice answer
+      const practiceInput = document.getElementById('practice-answer');
+      if (practiceInput) {
+        practiceInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') checkPracticeAnswer();
+        });
+      }
+
+      // Tutorial button and tabs
+      addListener('btn-tutorial', 'click', openTutorial);
+      addListener('tab-terminal-btn', 'click', switchToTerminalTab);
+      addListener('tab-tutorial-btn', 'click', switchToTutorialTab);
+      addListener('tutorial-next', 'click', nextTutorialStep);
+      addListener('tutorial-prev', 'click', prevTutorialStep);
+
+      // Modal close buttons
+      addListener('close-subnet-modal', 'click', () => {
+        document.getElementById('subnet-modal').classList.add('hidden');
+      });
+
+      addListener('close-help-modal', 'click', () => {
+        document.getElementById('help-modal').classList.add('hidden');
+      });
+
+      addListener('close-load-modal', 'click', () => {
+        document.getElementById('load-modal').classList.add('hidden');
+      });
+
+      addListener('close-save-modal', 'click', () => {
+        document.getElementById('save-modal').classList.add('hidden');
+      });
+
+      // Subnet calculator
+      addListener('btn-subnet-calc', 'click', openSubnetCalculator);
+      addListener('calc-calculate', 'click', calculateSubnet);
+
+      // Configuration panel
+      addListener('apply-config', 'click', applyConfiguration);
+      addListener('add-interface', 'click', () => {
+        if (networkState.selectedDevice) {
+          addInterface(networkState.selectedDevice);
+        }
+      });
+
+      addListener('add-vlan', 'click', () => {
+        if (networkState.selectedDevice) {
+          addVlan(networkState.selectedDevice);
+        }
+      });
+
+      // Firewall rules
+      addListener('add-rule', 'click', () => {
+        openRuleEditor(-1);
+      });
+
+      addListener('save-rule', 'click', saveFirewallRule);
+
+      addListener('cancel-rule', 'click', () => {
+        document.getElementById('rule-editor').classList.add('hidden');
+      });
+
+      // Save topology
+      addListener('confirm-save', 'click', saveTopology);
+
+      // Terminal clear
+      addListener('clear-terminal', 'click', () => {
+        document.getElementById('terminal').innerHTML = '';
+        logTerminal('Terminal cleared', 'info');
+      });
+
+      // Keyboard shortcuts
+      document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        switch (e.key.toLowerCase()) {
+          case 'c':
+            if (!networkState.connectMode) enterConnectMode();
+            break;
+          case 't':
+            startTraceMode();
+            break;
+          case 'delete':
+          case 'backspace':
+            if (networkState.selectedDevice) {
+              removeDevice(networkState.selectedDevice);
+            }
+            break;
+          case 'escape':
+            if (networkState.connectMode) exitConnectMode();
+            break;
+        }
+      });
+
+      // Initialize UI
+      updateStats();
+      renderFirewallRules();
+
+      logTerminal('SimuLAN initialized', 'success');
+      logTerminal('Drag devices from the left panel to start building your network', 'info');
+
+      // Load sample network
+      loadSampleNetwork();
+    }
+
+    /**
+     * Load a pre-configured sample network with all device types
+     */
+    function loadSampleNetwork() {
+      loadPreset('vlan');
+    }
+
+    // Start the application
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</html>
