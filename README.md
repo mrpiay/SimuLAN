@@ -382,8 +382,8 @@ When using VLANs, a single physical router interface can handle multiple VLANs u
                         │              │
               ┌─────────┼──────────────┼─────────┐
          port 1 (V10)  port 2 (V20)  port 3 (V30)
-              │              │              │
-           [PC-A]         [PC-B]         [PC-C]
+              │         │             │
+           [PC-A]    [PC-B]        [PC-C]
 ```
 
 **How a packet flows from PC-A (VLAN 10) to PC-C (VLAN 30):**
@@ -465,8 +465,8 @@ The SimuLAN tutorial network applies all the concepts above in a small office sc
         │   │   │   │   │                   │   │   │   │
        V10 V10 V20 V20 V50                 V30 V30 V40 V50
         │   │   │   │   │                   │   │   │   │
-       PC1 PC2 PC1 PC2 Printer            PC1  PC2 Ap  Ser
-        (Sales)  (HR)  (Svc)                (IT)      (Svc)
+       PC1 PC2 PC1 PC2 Printer            PC1  PC2 Ap  Server
+        (Sales) (HR) (Service)              (IT)     (Service)
 ```
 
 ### Subnet Design (VLSM)
